@@ -11,30 +11,6 @@ function generateId() {
 }
 
 /**
- * Sabit stil şablonu - Tüm görseller bu stilde üretilecek
- */
-const STYLE_TEMPLATE = {
-  technique: "THICK IMPASTO gouache painting",
-  brushwork:
-    "HEAVY VISIBLE BRUSHSTROKES, chunky paint application, textured canvas with paint ridges, bold loose brushwork, palette knife technique",
-  texture:
-    "authentic paint texture NOT smooth, rough painted surface, expressive brush marks",
-  colors: "bright warm Mediterranean colors with reds yellows ochre blues",
-  medium: "traditional gouache medium with thick layers, NOT digital rendering",
-  detail_level:
-    "detailed facial features, sharp focus, clear facial expressions, portrait-quality faces, close-up perspective, high detail on figures",
-};
-
-/**
- * Stil şablonundan tam prompt oluştur
- * @param {string} subject - Sahne konusu
- * @returns {string} Tam prompt
- */
-function buildPromptFromTemplate(subject) {
-  return `${subject}, ${STYLE_TEMPLATE.technique}, ${STYLE_TEMPLATE.brushwork}, ${STYLE_TEMPLATE.texture}, ${STYLE_TEMPLATE.colors}, ${STYLE_TEMPLATE.medium}, ${STYLE_TEMPLATE.detail_level}`;
-}
-
-/**
  * FLUX API ile resim üretir (CDN upload Python tarafında yapılır)
  * @param {object} promptData - Prompt verisi (subject string veya obje)
  * @param {string} projectId - Proje ID (opsiyonel, dosya adı için)
@@ -44,15 +20,12 @@ function buildPromptFromTemplate(subject) {
 async function generateImage({ prompt: promptData, projectId, sceneNumber }) {
   console.log("🎨 Resim üretiliyor (FLUX)...");
 
-  // Subject'i al ve sabit stil ile birleştir
-  const subject =
+  const prompt =
     typeof promptData === "string"
       ? promptData
       : promptData.subject || promptData;
-  const fullPrompt = buildPromptFromTemplate(subject);
 
-  console.log("📝 Subject:", subject);
-  console.log("🎨 Stil: THICK IMPASTO gouache painting");
+  console.log("📝 Prompt:", prompt);
   console.log("🔗 FLUX API:", FLUX_API_URL);
 
   try {
@@ -62,7 +35,7 @@ async function generateImage({ prompt: promptData, projectId, sceneNumber }) {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        prompt: fullPrompt,
+        prompt: prompt,
         num_inference_steps: 4,
         width: 1920,
         height: 1080,

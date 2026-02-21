@@ -34,7 +34,7 @@ docker run -d \
   -e FAL_KEY="$FAL_KEY" \
   -e NODE_CALLBACK_URL="$NODE_CALLBACK_URL" \
   -e IMAGEMAGICK_BINARY=/usr/bin/convert \
-  kaymazyusuf/video-api:latest
+  kaymazyusuf/video-api-v2:latest
 
 echo "✅ Container başlatıldı!"
 echo ""

@@ -35,14 +35,14 @@ jobs:
           context: ./yt-video
           file: ./yt-video/Dockerfile.runpod.base
           push: true
-          tags: kaymazyusuf/runpod-video-api:base
+          tags: kaymazyusuf/runpod-video-api-v2:base
           platforms: linux/amd64
           cache-from: |
             type=gha
-            type=registry,ref=kaymazyusuf/runpod-video-api:buildcache
+            type=registry,ref=kaymazyusuf/runpod-video-api-v2:buildcache
           cache-to: |
             type=gha,mode=max
-            type=registry,ref=kaymazyusuf/runpod-video-api:buildcache,mode=max
+            type=registry,ref=kaymazyusuf/runpod-video-api-v2:buildcache,mode=max
 
       - name: Image digest
         run: echo "Image pushed successfully!"
