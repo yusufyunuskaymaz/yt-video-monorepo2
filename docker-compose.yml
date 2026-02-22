@@ -10,7 +10,7 @@ services:
       context: ./yt-auto-video
       dockerfile: Dockerfile
     ports:
-      - "3000:3000"
+      - "3001:3000"
     environment:
       - DATABASE_URL=${DATABASE_URL}
       - R2_ACCOUNT_ID=${R2_ACCOUNT_ID}
