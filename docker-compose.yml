@@ -1,36 +1,32 @@
 # ========================================
-# Hetzner Deployment: Node.js Backend + PostgreSQL
+# ortak-v2: Node.js Backend + PostgreSQL
 # ========================================
-# Her zaman açık, ucuz sunucu
-# Video API (RunPod) opsiyonel — sadece render zamanı
 
 services:
   # PostgreSQL Veritabanı
   postgres:
     image: postgres:16-alpine
-    ports:
-      - "5432:5432"
     environment:
-      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_USER=${POSTGRES_USER:-ai_voice_user}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_DB=${POSTGRES_DB}
+      - POSTGRES_DB=${POSTGRES_DB:-ai_video-generator}
     volumes:
       - postgres_data:/var/lib/postgresql/data
-    restart: unless-stopped
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-ai_voice_user} -d ${POSTGRES_DB:-ai_video-generator}"]
       interval: 5s
       timeout: 5s
       retries: 5
 
-  # Node.js Backend (Ana API)
+  # Node.js Backend
   backend:
-    # build: ./yt-auto-video
-    image: kaymazyusuf/backend_nodejs:latest
+    build:
+      context: ./yt-auto-video
+      dockerfile: Dockerfile
     ports:
       - "3000:3000"
     environment:
-      - DATABASE_URL=${DATABASE_URL}
+      - DATABASE_URL=postgresql://${POSTGRES_USER:-ai_voice_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ai_video-generator}?schema=public
       - R2_ACCOUNT_ID=${R2_ACCOUNT_ID}
       - R2_ENDPOINT=${R2_ENDPOINT}
       - R2_ACCESS_KEY_ID=${R2_ACCESS_KEY_ID}
@@ -38,12 +34,8 @@ services:
       - R2_BUCKET_NAME=${R2_BUCKET_NAME}
       - R2_PUBLIC_URL=${R2_PUBLIC_URL}
       - PORT=3000
-      # RunPod opsiyonel — kapalıysa video API çağrıları skip edilir
       - PYTHON_API_URL=${PYTHON_API_URL:-}
       - NODE_CALLBACK_URL=${NODE_CALLBACK_URL:-http://backend:3000/webhook}
-    volumes:
-      - ./yt-auto-video/src:/app/src
-      - ./yt-auto-video/public:/app/public
     depends_on:
       postgres:
         condition: service_healthy
