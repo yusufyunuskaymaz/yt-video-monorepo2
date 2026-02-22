@@ -1,5 +1,4 @@
 const projectService = require("../services/project.service");
-const imageService = require("../services/image.service");
 const videoService = require("../services/video.service");
 
 /**
@@ -124,8 +123,12 @@ async function deleteProject(req, res) {
 }
 
 /**
- * Tüm sahneler için görsel oluştur
+ * Resim üretim durumunu getir (v2: resimler vertex-veo3 ile Mac'ten üretilir)
  * POST /api/projects/:id/generate-all
+ *
+ * NOT: Bu endpoint artık resim üretmez.
+ * Resimler Mac'teki vertex-veo3 ile üretilip PATCH /api/scenes/:id ile bildirilir.
+ * Bu endpoint sadece hangi sahnelerin resme ihtiyacı olduğunu döndürür.
  */
 async function generateAllImages(req, res) {
   try {
@@ -138,91 +141,35 @@ async function generateAllImages(req, res) {
         .json({ success: false, error: "Proje bulunamadı" });
     }
 
-    // Proje durumunu güncelle
-    await projectService.updateProjectStatus(id, "processing");
-
-    // Pending sahneleri al
-    const pendingScenes = project.scenes.filter((s) => s.status === "pending");
+    // Resmi olmayan sahneleri al
+    const pendingScenes = project.scenes.filter((s) => !s.imageUrl);
 
     if (pendingScenes.length === 0) {
       return res.json({
         success: true,
-        message: "İşlenecek sahne yok",
-        processed: 0,
+        message: "Tüm sahnelerin resmi mevcut",
+        pending: 0,
+        total: project.scenes.length,
       });
     }
 
-    console.log(`\n🎬 ========== BATCH IMAGE GENERATION ==========`);
-    console.log(`📁 Proje: ${project.title}`);
-    console.log(`🎬 İşlenecek sahne: ${pendingScenes.length}`);
-    console.log(`================================================\n`);
-
-    let processed = 0;
-    let failed = 0;
-
-    // Sahneleri sırayla işle
-    for (const scene of pendingScenes) {
-      console.log(
-        `\n📍 Sahne ${scene.sceneNumber}/${project.scenes.length} işleniyor...`
-      );
-
-      try {
-        // Sahne durumunu güncelle
-        await projectService.updateScene(scene.id, {
-          status: "image_processing",
-        });
-
-        // Görsel oluştur - subject'i prompt olarak kullan
-        const result = await imageService.generateImage({
-          prompt: scene.subject,
-          projectId: id,
-          sceneNumber: scene.sceneNumber,
-        });
-
-        // Sahneyi güncelle
-        await projectService.updateScene(scene.id, {
-          status: "image_done",
-          imageUrl: result.cdnUrl,
-        });
-
-        processed++;
-        console.log(`✅ Sahne ${scene.sceneNumber} tamamlandı!`);
-      } catch (error) {
-        console.error(
-          `❌ Sahne ${scene.sceneNumber} başarısız:`,
-          error.message
-        );
-        await projectService.updateScene(scene.id, { status: "failed" });
-        failed++;
-      }
-    }
-
-    // Proje durumunu güncelle
-    const finalStatus =
-      failed === 0
-        ? "completed"
-        : failed === pendingScenes.length
-        ? "failed"
-        : "partial";
-    await projectService.updateProjectStatus(id, finalStatus);
-
-    console.log(`\n🎉 ========== BATCH TAMAMLANDI ==========`);
-    console.log(`✅ Başarılı: ${processed}`);
-    console.log(`❌ Başarısız: ${failed}`);
-    console.log(`==========================================\n`);
-
     res.json({
       success: true,
-      message: "Görsel oluşturma tamamlandı",
-      processed,
-      failed,
-      total: pendingScenes.length,
+      message: `${pendingScenes.length} sahne resim bekliyor. vertex-veo3 ile Mac'ten üretip PATCH /api/scenes/:id ile bildirin.`,
+      pending: pendingScenes.length,
+      total: project.scenes.length,
+      scenes: pendingScenes.map((s) => ({
+        id: s.id,
+        sceneNumber: s.sceneNumber,
+        subject: s.subject,
+        status: s.status,
+      })),
     });
   } catch (error) {
-    console.error("❌ Batch işlem hatası:", error);
+    console.error("❌ Hata:", error);
     res.status(500).json({
       success: false,
-      error: "Görsel oluşturma sırasında hata oluştu",
+      error: "Hata oluştu",
       details: error.message,
     });
   }
@@ -636,39 +583,23 @@ async function generateFullPipeline(req, res) {
     // Lokal path'leri takip et (CDN URL yerine)
     const localPaths = {};
 
-    // ============ ADIM 1: GÖRSELLER (lokal) ============
-    console.log(`\n📍 ADIM 1/6: Görseller oluşturuluyor (lokal)...`);
-    const imageService = require("../services/image.service");
+    // ============ ADIM 1: GÖRSELLER (vertex-veo3 tarafından üretilmiş olmalı) ============
+    console.log(`\n📍 ADIM 1/6: Görseller kontrol ediliyor...`);
 
     const pendingImages = project.scenes.filter((s) => !s.imageUrl);
-    for (const scene of pendingImages) {
-      try {
-        await projectService.updateScene(scene.id, { status: "processing" });
-        const imageResult = await imageService.generateImage({
-          prompt: scene.subject,
-          projectId: id,
-          sceneNumber: scene.sceneNumber,
-        });
-
-        if (imageResult) {
-          const path = imageResult.localPath || imageResult.cdnUrl;
-          localPaths[`image_${scene.sceneNumber}`] = path;
-          await projectService.updateScene(scene.id, {
-            imageUrl: path,
-            status: "image_done",
-          });
-          results.images.processed++;
-          console.log(
-            `   ✅ Sahne ${scene.sceneNumber} görsel tamamlandı (lokal)`
-          );
-        }
-      } catch (error) {
-        await projectService.updateScene(scene.id, { status: "failed" });
-        results.images.failed++;
-        console.log(`   ❌ Sahne ${scene.sceneNumber} görsel başarısız`);
-      }
+    if (pendingImages.length > 0) {
+      console.log(`   ⚠️ ${pendingImages.length} sahnenin resmi eksik!`);
+      console.log(
+        `   ℹ️  Mac'teki vertex-veo3 ile üretip PATCH /api/scenes/:id ile bildirin.`
+      );
+      results.images.failed = pendingImages.length;
+    } else {
+      results.images.processed = project.scenes.length;
+      console.log(`   ✅ Tüm sahnelerin resmi mevcut`);
     }
-    console.log(`✅ ADIM 1 TAMAMLANDI: ${results.images.processed} görsel`);
+    console.log(
+      `✅ ADIM 1 TAMAMLANDI: ${results.images.processed} görsel mevcut, ${results.images.failed} eksik`
+    );
 
     // ============ ADIM 2: SESLER (lokal) ============
     console.log(`\n📍 ADIM 2/6: Sesler oluşturuluyor (lokal)...`);

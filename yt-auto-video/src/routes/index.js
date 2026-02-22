@@ -3,11 +3,13 @@ const router = express.Router();
 
 const imageRoutes = require("./image.routes");
 const projectRoutes = require("./project.routes");
+const sceneRoutes = require("./scene.routes");
 const videoService = require("../services/video.service");
 
 // API Routes
 router.use("/", imageRoutes);
 router.use("/projects", projectRoutes);
+router.use("/scenes", sceneRoutes);
 
 // GPU Test Route
 router.post("/gpu-test", async (req, res) => {

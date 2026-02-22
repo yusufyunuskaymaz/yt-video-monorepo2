@@ -420,9 +420,9 @@
 
     <div class="container">
       <header>
-        <h1>🎬 AI Video Generator</h1>
+        <h1>🎬 AI Video Generator v2</h1>
         <p class="subtitle">
-          JSON sahne verisini yapıştır, otomatik video üret
+          Gemini (resim) + Veo (video) + ElevenLabs (ses) + FFmpeg (render)
         </p>
       </header>
 
@@ -639,34 +639,25 @@
             <option value="spanish">🇪🇸 Español</option>
             <option value="arabic">🇸🇦 العربية</option>
           </select>
-          <button
-            class="btn btn-pipeline"
-            id="pipelineBtn"
-            onclick="runFullPipeline()"
-          >
-            🚀 Tam Akış Başlat
+          <button class="btn btn-pipeline" id="requestGenBtn" onclick="requestGeneration()" style="background: linear-gradient(135deg, #e91e63 0%, #c2185b 100%);">
+            🎬 Resim & Video Oluştur
           </button>
-          <button class="btn" id="generateAllBtn" onclick="generateAllImages()">
-            🎨 Görseller
+          <button class="btn" id="generateAllBtn" onclick="generateAllImages()" style="background: linear-gradient(135deg, #00bcd4 0%, #0097a7 100%);">
+            📋 Resim Durumu
           </button>
           <button
             class="btn btn-audio"
             id="generateAudioBtn"
             onclick="generateAllAudio()"
+            title="ElevenLabs TTS"
           >
             🎙️ Sesler
-          </button>
-          <button
-            class="btn"
-            id="generateVideoBtn"
-            onclick="generateAllVideos()"
-          >
-            🎬 Videolar
           </button>
           <button
             class="btn btn-merge"
             id="mergeBtn"
             onclick="mergeAllVideos()"
+            title="RunPod gerekli"
           >
             🔗 Birleştir
           </button>
@@ -677,6 +668,7 @@
             style="
               background: linear-gradient(135deg, #ff9800 0%, #f57c00 100%);
             "
+            title="RunPod gerekli"
           >
             📦 Tümünü Birleştir
           </button>
@@ -694,6 +686,9 @@
           <button class="btn btn-secondary" onclick="refreshProject()">
             🔄 Yenile
           </button>
+        </div>
+        <!-- Üretim Durumu Bandı -->
+        <div id="generationStatus" class="card hidden" style="margin-bottom: 15px; padding: 15px 20px;">
         </div>
         <div
           id="generateProgress"
@@ -934,6 +929,14 @@
             } else {
               finalVideoBtn.style.display = "none";
             }
+
+            // Üretim durumunu güncelle
+            updateGenerationStatus(p.status);
+            
+            // Aktif üretim varsa auto-refresh başlat
+            if (["generation_requested", "generating_images", "generating_videos"].includes(p.status)) {
+              startAutoRefresh();
+            }
           }
         } catch (error) {
           document.getElementById("detailTitle").textContent = "Hata!";
@@ -956,7 +959,7 @@
 
       let currentProjectId = null;
 
-      // Generate all images
+      // Check image status (v2: images come from vertex-veo3)
       async function generateAllImages() {
         if (!currentProjectId) return;
 
@@ -964,7 +967,7 @@
         const progress = document.getElementById("generateProgress");
 
         btn.disabled = true;
-        btn.innerHTML = '<div class="spinner"></div><span>İşleniyor...</span>';
+        btn.innerHTML = '<div class="spinner"></div><span>Kontrol ediliyor...</span>';
         progress.classList.remove("hidden");
 
         try {
@@ -975,29 +978,129 @@
           const result = await response.json();
 
           if (result.success) {
-            document.getElementById(
-              "progressText"
-            ).textContent = `✅ Tamamlandı! ${result.processed} başarılı, ${result.failed} başarısız.`;
+            if (result.pending === 0) {
+              document.getElementById("progressText").textContent = 
+                `✅ Tüm sahnelerin resmi mevcut! (${result.total} sahne)`;
+            } else {
+              document.getElementById("progressText").innerHTML = 
+                `⚠️ ${result.pending}/${result.total} sahne resim bekliyor.<br>` +
+                `<span style="font-size:0.8rem;">Mac'teki vertex-veo3 ile üretip API'ye bildirin.</span>`;
+            }
             setTimeout(() => refreshProject(), 1000);
           } else {
-            document.getElementById(
-              "progressText"
-            ).textContent = `❌ Hata: ${result.error}`;
+            document.getElementById("progressText").textContent = 
+              `❌ Hata: ${result.error}`;
           }
         } catch (error) {
-          document.getElementById(
-            "progressText"
-          ).textContent = `❌ Hata: ${error.message}`;
+          document.getElementById("progressText").textContent = 
+            `❌ Hata: ${error.message}`;
         } finally {
           btn.disabled = false;
-          btn.innerHTML = "🎨 Tüm Görselleri Oluştur";
-          setTimeout(() => progress.classList.add("hidden"), 3000);
+          btn.innerHTML = "📋 Resim Durumu";
+          setTimeout(() => progress.classList.add("hidden"), 5000);
         }
       }
 
       // Refresh current project
       function refreshProject() {
         if (currentProjectId) viewProject(currentProjectId);
+      }
+
+      // Auto-polling interval
+      let autoRefreshInterval = null;
+
+      // Üretim durumunu gösteren status bar
+      function updateGenerationStatus(status) {
+        const statusEl = document.getElementById("generationStatus");
+        const genBtn = document.getElementById("requestGenBtn");
+        
+        const statusConfig = {
+          generation_requested: { color: "#ffc107", icon: "⏳", text: "Üretim talebi gönderildi, vertex-veo3 bekliyor...", bg: "rgba(255,193,7,0.1)", border: "rgba(255,193,7,0.3)" },
+          generating_images: { color: "#2196f3", icon: "🎨", text: "Resimler üretiliyor (Gemini)...", bg: "rgba(33,150,243,0.1)", border: "rgba(33,150,243,0.3)" },
+          generating_videos: { color: "#9c27b0", icon: "🎬", text: "Videolar üretiliyor (Veo)...", bg: "rgba(156,39,176,0.1)", border: "rgba(156,39,176,0.3)" },
+          generation_done: { color: "#4caf50", icon: "✅", text: "Resim ve video üretimi tamamlandı!", bg: "rgba(76,175,80,0.1)", border: "rgba(76,175,80,0.3)" },
+          generation_failed: { color: "#f44336", icon: "❌", text: "Üretim başarısız oldu!", bg: "rgba(244,67,54,0.1)", border: "rgba(244,67,54,0.3)" },
+        };
+
+        const config = statusConfig[status];
+        if (config) {
+          statusEl.classList.remove("hidden");
+          statusEl.style.background = config.bg;
+          statusEl.style.borderColor = config.border;
+          statusEl.innerHTML = `
+            <div style="display: flex; align-items: center; gap: 12px;">
+              ${status.includes("generating") ? '<div class="spinner"></div>' : `<span style="font-size:1.3rem;">${config.icon}</span>`}
+              <div>
+                <div style="font-weight: 600; color: ${config.color};">${config.text}</div>
+                <div style="font-size: 0.8rem; color: #a0a0c0;">Sayfa otomatik güncelleniyor...</div>
+              </div>
+            </div>`;
+
+          // Aktif üretim varsa butonu disable et
+          if (status.includes("generating") || status === "generation_requested") {
+            genBtn.disabled = true;
+            genBtn.innerHTML = '<div class="spinner"></div><span>Üretiliyor...</span>';
+          } else {
+            genBtn.disabled = false;
+            genBtn.innerHTML = "🎬 Resim & Video Oluştur";
+          }
+
+          // Tamamlandıysa auto-refresh durdur
+          if (status === "generation_done" || status === "generation_failed") {
+            stopAutoRefresh();
+            setTimeout(() => statusEl.classList.add("hidden"), 10000);
+          }
+        } else {
+          statusEl.classList.add("hidden");
+          genBtn.disabled = false;
+          genBtn.innerHTML = "🎬 Resim & Video Oluştur";
+        }
+      }
+
+      // Auto refresh başlat
+      function startAutoRefresh() {
+        if (autoRefreshInterval) return;
+        autoRefreshInterval = setInterval(() => {
+          if (currentProjectId) viewProject(currentProjectId);
+        }, 5000);
+      }
+
+      // Auto refresh durdur
+      function stopAutoRefresh() {
+        if (autoRefreshInterval) {
+          clearInterval(autoRefreshInterval);
+          autoRefreshInterval = null;
+        }
+      }
+
+      // Resim & Video üretim talebi gönder
+      async function requestGeneration() {
+        if (!currentProjectId) return;
+
+        const btn = document.getElementById("requestGenBtn");
+        btn.disabled = true;
+        btn.innerHTML = '<div class="spinner"></div><span>Gönderiliyor...</span>';
+
+        try {
+          const response = await fetch(
+            `/api/projects/${currentProjectId}/request-generation`,
+            { method: "POST" }
+          );
+          const result = await response.json();
+
+          if (result.success) {
+            updateGenerationStatus("generation_requested");
+            startAutoRefresh();
+          } else {
+            alert("Hata: " + result.error);
+            btn.disabled = false;
+            btn.innerHTML = "🎬 Resim & Video Oluştur";
+          }
+        } catch (error) {
+          alert("Bağlantı hatası: " + error.message);
+          btn.disabled = false;
+          btn.innerHTML = "🎬 Resim & Video Oluştur";
+        }
       }
 
       function formatJson() {

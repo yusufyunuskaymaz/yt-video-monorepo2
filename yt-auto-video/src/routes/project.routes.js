@@ -33,6 +33,37 @@ router.post("/:id/generate-pipeline", projectController.generateFullPipeline);
 // POST /api/projects/:id/concatenate-final - Sadece final video birleştirme
 router.post("/:id/concatenate-final", projectController.concatenateFinalVideo);
 
+// PATCH /api/projects/:id - Proje güncelle (status vb.)
+router.patch("/:id", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const projectService = require("../services/project.service");
+    const updated = await projectService.updateProject(id, req.body);
+    res.json({ success: true, project: updated });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+// POST /api/projects/:id/request-generation - Resim/Video üretimi talep et
+// vertex-veo3 watcher bu durumu izler
+router.post("/:id/request-generation", async (req, res) => {
+  try {
+    const { id } = req.params;
+    const projectService = require("../services/project.service");
+    await projectService.updateProjectStatus(id, "generation_requested");
+    console.log(`🎬 Proje ${id} için resim/video üretimi talep edildi`);
+    res.json({
+      success: true,
+      message:
+        "Üretim talebi gönderildi. vertex-veo3 (Mac) otomatik başlayacak.",
+      status: "generation_requested",
+    });
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
 // DELETE /api/projects/:id - Projeyi sil
 router.delete("/:id", projectController.deleteProject);
 

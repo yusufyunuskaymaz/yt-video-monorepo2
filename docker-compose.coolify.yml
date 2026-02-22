@@ -1,8 +1,9 @@
 # ========================================
 # Coolify Deployment: Node.js Backend + PostgreSQL
 # ========================================
-# Docker Hub YOK - Local build + Volume mount
-# Coolify bu dosyayı Git repo'dan çeker ve local build yapar
+# Hetzner'de her zaman açık
+# FLUX kaldırıldı — resim/video vertex-veo3 (Mac) tarafından üretilir
+# Python Video API ayrı (RunPod — sadece render zamanı)
 
 services:
   # PostgreSQL Veritabanı
@@ -35,10 +36,6 @@ services:
       # Database
       - DATABASE_URL=postgresql://${POSTGRES_USER:-ai_voice_user}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:-ai_video_generator}?schema=public
 
-      # Fal.ai
-      - FAL_KEY=${FAL_KEY}
-      - FAL_AI_API_KEY=${FAL_KEY}
-
       # Cloudflare R2
       - R2_ACCOUNT_ID=${R2_ACCOUNT_ID}
       - R2_ENDPOINT=${R2_ENDPOINT}
@@ -50,8 +47,8 @@ services:
       # Server Config
       - PORT=3000
 
-      # RunPod Python API URL
-      - PYTHON_API_URL=${PYTHON_API_URL:-http://localhost:8000}
+      # RunPod Python API URL (opsiyonel — sadece render zamanı)
+      - PYTHON_API_URL=${PYTHON_API_URL:-}
 
       # Callback URL
       - NODE_CALLBACK_URL=${NODE_CALLBACK_URL:-http://localhost:3000/webhook}
