@@ -20,7 +20,7 @@ services:
   # Node.js Backend (Ana API)
   backend:
     # build: ./yt-auto-video
-    image: kaymazyusuf/backend_nodejs-v2:latest
+    image: kaymazyusuf/backend_nodejs:latest
     ports:
       - "3000:3000"
     environment:
@@ -49,7 +49,7 @@ services:
 
   # Python Video API
   video-api:
-    image: kaymazyusuf/video-api-v2:latest
+    image: kaymazyusuf/video-api:latest
     ports:
       - "8000:8000"
     environment:
