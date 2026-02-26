@@ -27,6 +27,7 @@ model Scene {
   timestamp        String
   narration        String
   subject          String
+  videoPrompt      String? // Grok video üretimi için ayrı prompt
   imageUrl         String?
   audioUrl         String?
   audioDuration    Float? // Ses süresi (saniye)

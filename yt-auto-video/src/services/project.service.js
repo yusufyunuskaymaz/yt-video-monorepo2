@@ -23,6 +23,7 @@ async function createProject(projectData) {
           timestamp: scene.timestamp,
           narration: scene.narration,
           subject: scene.subject,
+          videoPrompt: scene.video_prompt || scene.videoPrompt || null,
           status: "pending",
         })),
       },
