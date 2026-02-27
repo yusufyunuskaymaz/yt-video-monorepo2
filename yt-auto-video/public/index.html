@@ -400,11 +400,20 @@
     </style>
   </head>
   <body>
-    <!-- Image Modal -->
+    <!-- Image Gallery Modal -->
     <div class="modal" id="imageModal" onclick="closeModal()">
-      <div class="modal-content" onclick="event.stopPropagation()">
+      <div class="modal-content" onclick="event.stopPropagation()" style="display: flex; flex-direction: column; align-items: center; max-width: 95%; max-height: 95%;">
         <button class="modal-close" onclick="closeModal()">×</button>
-        <img id="modalImage" src="" alt="Preview" />
+        <!-- Sahne bilgisi -->
+        <div id="galleryInfo" style="color: #a0a0c0; font-size: 0.85rem; margin-bottom: 8px; text-align: center;"></div>
+        <!-- Ana resim + navigasyon -->
+        <div style="display: flex; align-items: center; gap: 15px; position: relative;">
+          <button onclick="galleryPrev()" id="galleryPrevBtn" style="background: rgba(255,255,255,0.1); border: none; color: #fff; font-size: 2rem; width: 50px; height: 50px; border-radius: 50%; cursor: pointer; transition: all 0.2s; flex-shrink: 0;">‹</button>
+          <img id="modalImage" src="" alt="Preview" style="max-height: 70vh; max-width: 75vw; border-radius: 12px; box-shadow: 0 20px 60px rgba(0,0,0,0.5); transition: opacity 0.2s;" />
+          <button onclick="galleryNext()" id="galleryNextBtn" style="background: rgba(255,255,255,0.1); border: none; color: #fff; font-size: 2rem; width: 50px; height: 50px; border-radius: 50%; cursor: pointer; transition: all 0.2s; flex-shrink: 0;">›</button>
+        </div>
+        <!-- Thumbnail strip -->
+        <div id="galleryThumbs" style="display: flex; gap: 6px; margin-top: 15px; overflow-x: auto; max-width: 85vw; padding: 5px 0;"></div>
       </div>
     </div>
 
@@ -738,6 +747,15 @@
           class="card hidden"
           style="margin-bottom: 15px; padding: 15px 20px"
         ></div>
+        <!-- Default Stil -->
+        <div class="card" style="margin-bottom: 15px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+            <h3 style="font-size: 0.95rem; color: #a0a0c0;">🎨 Default Stil</h3>
+            <button class="btn btn-secondary btn-sm" onclick="saveDefaultStyle()">💾 Kaydet</button>
+          </div>
+          <textarea id="defaultStyleInput" placeholder="Örn: 3D Pixar animation style, Ottoman era, warm golden lighting, detailed textures, cinematic composition" style="width:100%;min-height:60px;padding:10px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-family:inherit;font-size:0.85rem;resize:vertical;"></textarea>
+          <p style="font-size: 0.7rem; color: #606080; margin-top: 4px;">Her sahne promptunun başına otomatik eklenir</p>
+        </div>
         <!-- Karakterler Bölümü -->
         <div class="card" style="margin-bottom: 15px;">
           <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
@@ -942,6 +960,9 @@
             document.getElementById(
               "detailTitle"
             ).textContent = `📽️ ${p.title}`;
+
+            // Default stil yükle
+            document.getElementById('defaultStyleInput').value = p.defaultStyle || '';
 
             // Stats
             const pending = p.scenes.filter(
@@ -1253,12 +1274,65 @@
         el.textContent = text;
       }
 
-      // Modal functions
+      // ─── Gallery Modal ──────────────────────────────
+      let galleryImages = [];
+      let galleryIndex = 0;
+
       function openModal(imageUrl) {
-        document.getElementById("modalImage").src = imageUrl;
+        // Tüm sahne resimlerini topla
+        galleryImages = [];
+        const rows = document.querySelectorAll('#scenesBody tr');
+        rows.forEach((row, i) => {
+          const img = row.querySelector('.scene-img');
+          if (img && img.src) {
+            const sceneNum = row.querySelector('.scene-num')?.textContent || (i + 1);
+            galleryImages.push({ url: img.src, sceneNumber: sceneNum });
+          }
+        });
+
+        // Tıklanan resmin index'ini bul
+        galleryIndex = galleryImages.findIndex(g => g.url === imageUrl);
+        if (galleryIndex === -1) {
+          // Karakter resmi gibi galeri dışı bir resim
+          galleryImages = [{ url: imageUrl, sceneNumber: '' }];
+          galleryIndex = 0;
+        }
+
+        showGalleryImage();
         document.getElementById("imageModal").classList.add("active");
         document.body.style.overflow = "hidden";
       }
+
+      function showGalleryImage() {
+        const current = galleryImages[galleryIndex];
+        document.getElementById("modalImage").src = current.url;
+        document.getElementById("galleryInfo").textContent = 
+          current.sceneNumber ? `Sahne ${current.sceneNumber} — ${galleryIndex + 1}/${galleryImages.length}` : '';
+
+        // Buton durumları
+        document.getElementById("galleryPrevBtn").style.visibility = galleryIndex > 0 ? 'visible' : 'hidden';
+        document.getElementById("galleryNextBtn").style.visibility = galleryIndex < galleryImages.length - 1 ? 'visible' : 'hidden';
+
+        // Thumbnails
+        const thumbsEl = document.getElementById("galleryThumbs");
+        if (galleryImages.length > 1) {
+          thumbsEl.innerHTML = galleryImages.map((g, i) => `
+            <img src="${g.url}" 
+              onclick="galleryGoTo(${i})" 
+              style="width: 60px; height: 60px; border-radius: 6px; object-fit: cover; cursor: pointer; 
+                border: 2px solid ${i === galleryIndex ? '#667eea' : 'transparent'}; 
+                opacity: ${i === galleryIndex ? '1' : '0.5'}; transition: all 0.2s;">
+          `).join('');
+          thumbsEl.style.display = 'flex';
+        } else {
+          thumbsEl.style.display = 'none';
+        }
+      }
+
+      function galleryPrev() { if (galleryIndex > 0) { galleryIndex--; showGalleryImage(); } }
+      function galleryNext() { if (galleryIndex < galleryImages.length - 1) { galleryIndex++; showGalleryImage(); } }
+      function galleryGoTo(i) { galleryIndex = i; showGalleryImage(); }
+
       function closeModal() {
         document.getElementById("imageModal").classList.remove("active");
         document.body.style.overflow = "auto";
@@ -1628,6 +1702,22 @@
         }
       }
 
+      // ─── Default Stil ─────────────────────────────
+      async function saveDefaultStyle() {
+        if (!currentProjectId) return;
+        const style = document.getElementById('defaultStyleInput').value.trim();
+        try {
+          await fetch(`/api/projects/${currentProjectId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ defaultStyle: style || null }),
+          });
+          alert('✅ Stil kaydedildi!');
+        } catch (e) {
+          alert('Hata: ' + e.message);
+        }
+      }
+
       // ─── Karakter Yönetimi ──────────────────────────
       function toggleCharacterForm() {
         document.getElementById('characterForm').classList.toggle('hidden');
@@ -1705,8 +1795,9 @@
           const response = await fetch('/api/gemini/models');
           const result = await response.json();
           if (result.success && result.models.length > 0) {
+            const defaultModel = 'nano-banana-pro-preview';
             select.innerHTML = result.models.map(m => 
-              `<option value="${m.id}">${m.name}</option>`
+              `<option value="${m.id}" ${m.id === defaultModel ? 'selected' : ''}>${m.name}</option>`
             ).join('');
           } else {
             select.innerHTML = '<option value="">Model bulunamadı</option>';
@@ -1787,11 +1878,15 @@
         }
       }
 
-      // ESC key to close modals
+      // Keyboard: ESC kapatır, ← → galeri gezin
       document.addEventListener("keydown", (e) => {
         if (e.key === "Escape") {
           closeModal();
           closeVideoModal();
+        }
+        if (document.getElementById("imageModal").classList.contains("active")) {
+          if (e.key === "ArrowLeft") galleryPrev();
+          if (e.key === "ArrowRight") galleryNext();
         }
       });
     </script>

@@ -23,6 +23,9 @@ async function createProject(projectData) {
           timestamp: scene.timestamp,
           narration: scene.narration,
           subject: scene.subject,
+          characters: scene.characters
+            ? JSON.stringify(scene.characters)
+            : null,
           videoPrompt: scene.video_prompt || scene.videoPrompt || null,
           status: "pending",
         })),

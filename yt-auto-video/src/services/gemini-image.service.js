@@ -172,12 +172,42 @@ async function generateAndUploadForScene(projectId, sceneId, options = {}) {
   const prompt = scene.subject;
   if (!prompt) throw new Error(`Sahne ${sceneId} için prompt (subject) yok`);
 
+  // Default stil varsa prompt'un sonuna ekle
+  const fullPrompt = options.defaultStyle
+    ? `${prompt}\n\nStyle: ${options.defaultStyle}`
+    : prompt;
+
+  // Sahne bazında karakter filtreleme
+  let sceneOptions = { ...options };
+  if (scene.characters && options.allCharacterRefs) {
+    try {
+      const sceneChars = JSON.parse(scene.characters); // ["Sultan", "Vezir"]
+      if (sceneChars.length > 0) {
+        sceneOptions.referenceImages = options.allCharacterRefs
+          .filter((c) => sceneChars.includes(c.name))
+          .map((c) => ({ base64: c.base64, mimeType: c.mimeType }));
+        console.log(
+          `[Gemini] Sahne ${scene.sceneNumber}: ${sceneChars.join(
+            ", "
+          )} referansları eklendi`
+        );
+      } else {
+        sceneOptions.referenceImages = [];
+      }
+    } catch (e) {
+      // parse hatası — tüm referansları gönder
+    }
+  }
+
   // Sahne durumunu güncelle
   await projectService.updateScene(sceneId, { status: "image_processing" });
 
   try {
     // Resim üret
-    const { imageBuffer, mimeType } = await generateImage(prompt, options);
+    const { imageBuffer, mimeType } = await generateImage(
+      fullPrompt,
+      sceneOptions
+    );
 
     // R2'ye yükle
     const ext = mimeType.includes("png") ? "png" : "jpg";
@@ -236,6 +266,14 @@ async function generateAllForProject(projectId, options = {}) {
     `[Gemini] Proje ${projectId}: ${pendingScenes.length} sahne üretilecek`
   );
 
+  // Default stil ekle
+  if (project.defaultStyle) {
+    options.defaultStyle = project.defaultStyle;
+    console.log(
+      `[Gemini] Default stil: "${project.defaultStyle.substring(0, 60)}..."`
+    );
+  }
+
   // Karakter referanslarını yükle (tüm sahneler için ortak)
   let characterRefs = [];
   try {
@@ -250,7 +288,9 @@ async function generateAllForProject(projectId, options = {}) {
           .map((c) => c.name)
           .join(", ")}`
       );
-      // Referans resimleri options'a ekle
+      // Tüm referansları sakla (sahne bazında filtrelenecek)
+      options.allCharacterRefs = characterRefs;
+      // Fallback: sahne characters belirtmemişse tümünü gönder
       options.referenceImages = characterRefs.map((c) => ({
         base64: c.base64,
         mimeType: c.mimeType,
