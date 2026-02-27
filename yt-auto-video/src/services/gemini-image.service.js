@@ -10,27 +10,65 @@ const projectService = require("./project.service");
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
-// Desteklenen modeller
-const MODELS = [
-  {
-    id: "gemini-2.0-flash-preview-image-generation",
-    name: "Gemini 2.0 Flash (Image)",
-    description: "Hızlı ve ekonomik resim üretimi",
-    category: "image",
-  },
-  {
-    id: "gemini-2.5-flash-preview-image-generation",
-    name: "Gemini 2.5 Flash (Image)",
-    description: "Yüksek kaliteli resim üretimi",
-    category: "image",
-  },
-];
+// Model cache
+let modelsCache = { data: null, timestamp: 0 };
+const CACHE_TTL = 5 * 60 * 1000; // 5 dakika
 
 /**
- * Mevcut Gemini modellerini listele
+ * Gemini API'den modelleri çek ve filtrele
  */
-function getModels() {
-  return MODELS;
+async function getModels() {
+  const apiKey = GEMINI_API_KEY;
+  if (!apiKey) return [];
+
+  // Cache kontrolü
+  if (modelsCache.data && Date.now() - modelsCache.timestamp < CACHE_TTL) {
+    return modelsCache.data;
+  }
+
+  try {
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}&pageSize=100`
+    );
+    if (!response.ok) return [];
+
+    const json = await response.json();
+    const allModels = json.models || [];
+
+    // generateContent destekleyenleri filtrele
+    const generateModels = allModels.filter((m) =>
+      m.supportedGenerationMethods?.includes("generateContent")
+    );
+
+    // Resim üreten modelleri ayıkla
+    const imageKeywords = ["image", "banana", "imagen"];
+    const models = [];
+
+    for (const m of generateModels) {
+      const id = m.name.replace("models/", "");
+      const isImageModel = imageKeywords.some(
+        (kw) =>
+          id.toLowerCase().includes(kw) ||
+          (m.displayName || "").toLowerCase().includes(kw)
+      );
+
+      if (isImageModel) {
+        models.push({
+          id,
+          name: m.displayName || id,
+          description: m.description || "",
+          category: "image",
+        });
+      }
+    }
+
+    console.log(`[Gemini] ${models.length} resim modeli bulundu`);
+    modelsCache = { data: models, timestamp: Date.now() };
+    return models;
+  } catch (err) {
+    console.error("[Gemini] Model listesi hatası:", err.message);
+    return [];
+  }
 }
 
 /**

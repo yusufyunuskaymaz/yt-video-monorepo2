@@ -4,9 +4,13 @@ const geminiImageService = require("../services/gemini-image.service");
  * Gemini modelleri listele
  * GET /api/gemini/models
  */
-function getModels(req, res) {
-  const models = geminiImageService.getModels();
-  res.json({ success: true, models });
+async function getModels(req, res) {
+  try {
+    const models = await geminiImageService.getModels();
+    res.json({ success: true, models });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
 }
 
 /**

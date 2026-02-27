@@ -658,12 +658,7 @@
               cursor: pointer;
             "
           >
-            <option value="gemini-2.0-flash-preview-image-generation">
-              ⚡ Gemini 2.0 Flash
-            </option>
-            <option value="gemini-2.5-flash-preview-image-generation">
-              🚀 Gemini 2.5 Flash
-            </option>
+            <option value="">Modeller yükleniyor...</option>
           </select>
           <button
             class="btn"
@@ -904,6 +899,9 @@
         document.getElementById("detailStats").innerHTML = "";
         document.getElementById("scenesBody").innerHTML =
           '<tr><td colspan="6" style="text-align:center;padding:30px;color:#808090">Yükleniyor...</td></tr>';
+
+        // Gemini modellerini yükle
+        loadGeminiModels();
 
         try {
           const response = await fetch(`/api/projects/${id}`);
@@ -1596,6 +1594,24 @@
         } finally {
           btn.disabled = false;
           btn.innerHTML = "🚀 GPU Test Başlat";
+        }
+      }
+
+      // Gemini modellerini API'den çek
+      async function loadGeminiModels() {
+        const select = document.getElementById('geminiModelSelect');
+        try {
+          const response = await fetch('/api/gemini/models');
+          const result = await response.json();
+          if (result.success && result.models.length > 0) {
+            select.innerHTML = result.models.map(m => 
+              `<option value="${m.id}">${m.name}</option>`
+            ).join('');
+          } else {
+            select.innerHTML = '<option value="">Model bulunamadı</option>';
+          }
+        } catch (e) {
+          select.innerHTML = '<option value="">Model yüklenemedi</option>';
         }
       }
 
