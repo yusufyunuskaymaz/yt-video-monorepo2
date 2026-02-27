@@ -19,6 +19,7 @@
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "@google/generative-ai": "^0.24.0",
+    "multer": "^2.0.2",
     "prisma": "^6.19.2"
   }
 }

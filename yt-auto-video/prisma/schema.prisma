@@ -8,15 +8,16 @@ datasource db {
 }
 
 model Project {
-  id            Int      @id @default(autoincrement())
+  id            Int         @id @default(autoincrement())
   title         String
   totalDuration Int
   totalScenes   Int
-  status        String   @default("pending")
-  finalVideoUrl String? // Birleştirilmiş final video
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  status        String      @default("pending")
+  finalVideoUrl String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
   scenes        Scene[]
+  characters    Character[]
 }
 
 model Scene {
@@ -27,18 +28,30 @@ model Scene {
   timestamp        String
   narration        String
   subject          String
-  videoPrompt      String? // Grok video üretimi için ayrı prompt
+  videoPrompt      String?
   imageUrl         String?
   audioUrl         String?
-  audioDuration    Float? // Ses süresi (saniye)
-  audioVoice       String? // TTS ses (walter, vb.)
-  audioTemperature Float? // TTS temperature
-  videoUrl         String? // Sessiz video (Ken Burns)
-  mergedVideoUrl   String? // Sesli video (video + audio birleşik)
+  audioDuration    Float?
+  audioVoice       String?
+  audioTemperature Float?
+  videoUrl         String?
+  mergedVideoUrl   String?
   status           String   @default("pending")
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt
 
   @@index([projectId])
   @@index([status])
+}
+
+model Character {
+  id          Int      @id @default(autoincrement())
+  projectId   Int
+  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String
+  description String?
+  imageUrl    String
+  createdAt   DateTime @default(now())
+
+  @@index([projectId])
 }

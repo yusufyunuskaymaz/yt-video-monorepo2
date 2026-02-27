@@ -5,10 +5,12 @@ const imageRoutes = require("./image.routes");
 const projectRoutes = require("./project.routes");
 const sceneRoutes = require("./scene.routes");
 const geminiRoutes = require("./gemini.routes");
+const characterRoutes = require("./character.routes");
 const videoService = require("../services/video.service");
 
 // API Routes
 router.use("/", imageRoutes);
+router.use("/", characterRoutes);
 router.use("/projects", projectRoutes);
 router.use("/scenes", sceneRoutes);
 router.use("/gemini", geminiRoutes);

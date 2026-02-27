@@ -738,6 +738,35 @@
           class="card hidden"
           style="margin-bottom: 15px; padding: 15px 20px"
         ></div>
+        <!-- Karakterler Bölümü -->
+        <div class="card" style="margin-bottom: 15px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h3 style="font-size: 0.95rem; color: #a0a0c0;">🎭 Karakterler</h3>
+            <button class="btn btn-secondary btn-sm" onclick="toggleCharacterForm()">+ Ekle</button>
+          </div>
+          <!-- Karakter Ekleme Formu -->
+          <div id="characterForm" class="hidden" style="margin-bottom: 15px; padding: 15px; background: rgba(0,0,0,0.2); border-radius: 10px;">
+            <div style="display: flex; gap: 10px; align-items: end; flex-wrap: wrap;">
+              <div style="flex: 1; min-width: 120px;">
+                <label style="font-size: 0.8rem;">İsim</label>
+                <input type="text" id="charName" placeholder="Sultan" style="width:100%;padding:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.85rem;">
+              </div>
+              <div style="flex: 2; min-width: 200px;">
+                <label style="font-size: 0.8rem;">Açıklama (opsiyonel)</label>
+                <input type="text" id="charDesc" placeholder="Orta yaşlı padişah, kalın kaşlı..." style="width:100%;padding:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.85rem;">
+              </div>
+              <div>
+                <label style="font-size: 0.8rem;">Resim</label>
+                <input type="file" id="charImage" accept="image/*" style="font-size:0.8rem;color:#a0a0c0;">
+              </div>
+              <button class="btn btn-sm" onclick="uploadCharacter()" style="background: linear-gradient(135deg, #43a047 0%, #2e7d32 100%);">Yükle</button>
+            </div>
+          </div>
+          <!-- Karakter Grid -->
+          <div id="characterGrid" style="display: flex; gap: 12px; flex-wrap: wrap;">
+            <p style="color: #606080; font-size: 0.85rem;">Henüz karakter eklenmemiş</p>
+          </div>
+        </div>
         <div
           id="generateProgress"
           class="card hidden"
@@ -902,6 +931,8 @@
 
         // Gemini modellerini yükle
         loadGeminiModels();
+        // Karakterleri yükle
+        loadCharacters();
 
         try {
           const response = await fetch(`/api/projects/${id}`);
@@ -1594,6 +1625,76 @@
         } finally {
           btn.disabled = false;
           btn.innerHTML = "🚀 GPU Test Başlat";
+        }
+      }
+
+      // ─── Karakter Yönetimi ──────────────────────────
+      function toggleCharacterForm() {
+        document.getElementById('characterForm').classList.toggle('hidden');
+      }
+
+      async function loadCharacters() {
+        if (!currentProjectId) return;
+        const grid = document.getElementById('characterGrid');
+        try {
+          const res = await fetch(`/api/projects/${currentProjectId}/characters`);
+          const data = await res.json();
+          if (!data.success || data.characters.length === 0) {
+            grid.innerHTML = '<p style="color: #606080; font-size: 0.85rem;">Henüz karakter eklenmemiş</p>';
+            return;
+          }
+          grid.innerHTML = data.characters.map(c => `
+            <div style="background: rgba(255,255,255,0.05); border-radius: 10px; padding: 8px; text-align: center; position: relative; width: 100px;">
+              <img src="${c.imageUrl}" style="width: 80px; height: 80px; border-radius: 8px; object-fit: cover; cursor: pointer;" onclick="openModal('${c.imageUrl}')">
+              <div style="font-size: 0.75rem; margin-top: 4px; color: #c0c0e0; font-weight: 500;">${c.name}</div>
+              ${c.description ? `<div style="font-size: 0.65rem; color: #808090; margin-top: 2px;">${c.description.substring(0, 30)}</div>` : ''}
+              <button onclick="deleteCharacter(${c.id})" style="position: absolute; top: 2px; right: 2px; background: rgba(244,67,54,0.8); border: none; color: #fff; width: 18px; height: 18px; border-radius: 50%; font-size: 0.6rem; cursor: pointer; line-height: 18px;">✕</button>
+            </div>
+          `).join('');
+        } catch (e) {
+          grid.innerHTML = '<p style="color: #e57373; font-size: 0.85rem;">Yüklenemedi</p>';
+        }
+      }
+
+      async function uploadCharacter() {
+        const name = document.getElementById('charName').value.trim();
+        const desc = document.getElementById('charDesc').value.trim();
+        const fileInput = document.getElementById('charImage');
+        if (!name) return alert('İsim gerekli');
+        if (!fileInput.files[0]) return alert('Resim seçin');
+
+        const formData = new FormData();
+        formData.append('name', name);
+        formData.append('description', desc);
+        formData.append('image', fileInput.files[0]);
+
+        try {
+          const res = await fetch(`/api/projects/${currentProjectId}/characters`, {
+            method: 'POST',
+            body: formData,
+          });
+          const data = await res.json();
+          if (data.success) {
+            document.getElementById('charName').value = '';
+            document.getElementById('charDesc').value = '';
+            fileInput.value = '';
+            document.getElementById('characterForm').classList.add('hidden');
+            loadCharacters();
+          } else {
+            alert('Hata: ' + data.error);
+          }
+        } catch (e) {
+          alert('Yükleme hatası: ' + e.message);
+        }
+      }
+
+      async function deleteCharacter(id) {
+        if (!confirm('Bu karakteri silmek istiyor musunuz?')) return;
+        try {
+          await fetch(`/api/characters/${id}`, { method: 'DELETE' });
+          loadCharacters();
+        } catch (e) {
+          alert('Silme hatası: ' + e.message);
         }
       }
 

@@ -1,0 +1,127 @@
+const prisma = require("../config/db.config");
+const r2Service = require("./r2.service");
+const https = require("https");
+const http = require("http");
+
+/**
+ * Projenin karakterlerini getir
+ */
+async function getCharactersByProject(projectId) {
+  return prisma.character.findMany({
+    where: { projectId: parseInt(projectId, 10) },
+    orderBy: { createdAt: "asc" },
+  });
+}
+
+/**
+ * Karakter oluştur — resmi R2'ye yükle
+ * @param {number} projectId
+ * @param {string} name
+ * @param {string} description
+ * @param {Buffer} imageBuffer
+ * @param {string} mimeType
+ */
+async function createCharacter(
+  projectId,
+  name,
+  description,
+  imageBuffer,
+  mimeType
+) {
+  const ext = mimeType.includes("png") ? "png" : "jpg";
+  const slugName = name
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "_")
+    .substring(0, 30);
+  const r2Key = `characters/${projectId}/${slugName}_${Date.now()}.${ext}`;
+
+  const imageUrl = await r2Service.uploadBuffer(imageBuffer, r2Key, mimeType);
+
+  const character = await prisma.character.create({
+    data: {
+      projectId: parseInt(projectId, 10),
+      name,
+      description: description || null,
+      imageUrl,
+    },
+  });
+
+  console.log(`[Character] ✅ ${name} oluşturuldu → ${imageUrl}`);
+  return character;
+}
+
+/**
+ * Karakter güncelle
+ */
+async function updateCharacter(characterId, data) {
+  return prisma.character.update({
+    where: { id: parseInt(characterId, 10) },
+    data,
+  });
+}
+
+/**
+ * Karakter sil
+ */
+async function deleteCharacter(characterId) {
+  return prisma.character.delete({
+    where: { id: parseInt(characterId, 10) },
+  });
+}
+
+/**
+ * Karakter resimlerini base64 olarak al (Gemini API için)
+ */
+async function getCharacterImagesAsBase64(projectId) {
+  const characters = await getCharactersByProject(projectId);
+  if (characters.length === 0) return [];
+
+  const results = [];
+
+  for (const char of characters) {
+    try {
+      const buffer = await downloadToBuffer(char.imageUrl);
+      results.push({
+        name: char.name,
+        description: char.description || "",
+        base64: buffer.toString("base64"),
+        mimeType: char.imageUrl.endsWith(".png") ? "image/png" : "image/jpeg",
+      });
+    } catch (err) {
+      console.error(`[Character] ${char.name} indirilemedi:`, err.message);
+    }
+  }
+
+  return results;
+}
+
+/**
+ * URL'den buffer olarak indir
+ */
+function downloadToBuffer(url) {
+  return new Promise((resolve, reject) => {
+    const protocol = url.startsWith("https") ? https : http;
+    protocol
+      .get(url, (response) => {
+        if (response.statusCode === 301 || response.statusCode === 302) {
+          downloadToBuffer(response.headers.location)
+            .then(resolve)
+            .catch(reject);
+          return;
+        }
+        const chunks = [];
+        response.on("data", (chunk) => chunks.push(chunk));
+        response.on("end", () => resolve(Buffer.concat(chunks)));
+        response.on("error", reject);
+      })
+      .on("error", reject);
+  });
+}
+
+module.exports = {
+  getCharactersByProject,
+  createCharacter,
+  updateCharacter,
+  deleteCharacter,
+  getCharacterImagesAsBase64,
+};

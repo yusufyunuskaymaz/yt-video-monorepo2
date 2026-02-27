@@ -7,6 +7,7 @@
 const { GoogleGenerativeAI } = require("@google/generative-ai");
 const r2Service = require("./r2.service");
 const projectService = require("./project.service");
+const characterService = require("./character.service");
 
 const GEMINI_API_KEY = process.env.GEMINI_API_KEY;
 
@@ -234,6 +235,30 @@ async function generateAllForProject(projectId, options = {}) {
   console.log(
     `[Gemini] Proje ${projectId}: ${pendingScenes.length} sahne üretilecek`
   );
+
+  // Karakter referanslarını yükle (tüm sahneler için ortak)
+  let characterRefs = [];
+  try {
+    characterRefs = await characterService.getCharacterImagesAsBase64(
+      projectId
+    );
+    if (characterRefs.length > 0) {
+      console.log(
+        `[Gemini] ${
+          characterRefs.length
+        } karakter referansı yüklendi: ${characterRefs
+          .map((c) => c.name)
+          .join(", ")}`
+      );
+      // Referans resimleri options'a ekle
+      options.referenceImages = characterRefs.map((c) => ({
+        base64: c.base64,
+        mimeType: c.mimeType,
+      }));
+    }
+  } catch (err) {
+    console.error("[Gemini] Karakter yükleme hatası:", err.message);
+  }
 
   // Proje durumunu güncelle
   await projectService.updateProject(projectId, {
