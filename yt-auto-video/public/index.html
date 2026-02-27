@@ -616,7 +616,13 @@
       <!-- Project Detail Tab -->
       <div id="tab-detail" class="tab-content hidden">
         <div
-          style="display: flex; gap: 10px; margin-bottom: 20px; flex-wrap: wrap; align-items: center"
+          style="
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+            align-items: center;
+          "
         >
           <button class="btn btn-secondary" onclick="goBack()">← Geri</button>
           <select
@@ -639,10 +645,54 @@
             <option value="spanish">🇪🇸 Español</option>
             <option value="arabic">🇸🇦 العربية</option>
           </select>
-          <button class="btn btn-pipeline" id="requestGenBtn" onclick="requestGeneration()" style="background: linear-gradient(135deg, #e91e63 0%, #c2185b 100%);">
+          <select
+            id="geminiModelSelect"
+            style="
+              padding: 10px 14px;
+              background: rgba(0, 0, 0, 0.3);
+              border: 2px solid rgba(102, 126, 234, 0.3);
+              border-radius: 10px;
+              color: #fff;
+              font-size: 0.85rem;
+              font-weight: 500;
+              cursor: pointer;
+            "
+          >
+            <option value="gemini-2.0-flash-preview-image-generation">
+              ⚡ Gemini 2.0 Flash
+            </option>
+            <option value="gemini-2.5-flash-preview-image-generation">
+              🚀 Gemini 2.5 Flash
+            </option>
+          </select>
+          <button
+            class="btn"
+            id="geminiGenBtn"
+            onclick="generateImagesWithGemini()"
+            style="
+              background: linear-gradient(135deg, #43a047 0%, #2e7d32 100%);
+            "
+          >
+            🖼️ Resimleri Üret (Gemini API)
+          </button>
+          <button
+            class="btn btn-pipeline"
+            id="requestGenBtn"
+            onclick="requestGeneration()"
+            style="
+              background: linear-gradient(135deg, #e91e63 0%, #c2185b 100%);
+            "
+          >
             🎬 Resim & Video Oluştur
           </button>
-          <button class="btn" id="generateAllBtn" onclick="generateAllImages()" style="background: linear-gradient(135deg, #00bcd4 0%, #0097a7 100%);">
+          <button
+            class="btn"
+            id="generateAllBtn"
+            onclick="generateAllImages()"
+            style="
+              background: linear-gradient(135deg, #00bcd4 0%, #0097a7 100%);
+            "
+          >
             📋 Resim Durumu
           </button>
           <button
@@ -688,8 +738,11 @@
           </button>
         </div>
         <!-- Üretim Durumu Bandı -->
-        <div id="generationStatus" class="card hidden" style="margin-bottom: 15px; padding: 15px 20px;">
-        </div>
+        <div
+          id="generationStatus"
+          class="card hidden"
+          style="margin-bottom: 15px; padding: 15px 20px"
+        ></div>
         <div
           id="generateProgress"
           class="card hidden"
@@ -932,9 +985,15 @@
 
             // Üretim durumunu güncelle
             updateGenerationStatus(p.status);
-            
+
             // Aktif üretim varsa auto-refresh başlat
-            if (["generation_requested", "generating_images", "generating_videos"].includes(p.status)) {
+            if (
+              [
+                "generation_requested",
+                "generating_images",
+                "generating_videos",
+              ].includes(p.status)
+            ) {
               startAutoRefresh();
             }
           }
@@ -967,7 +1026,8 @@
         const progress = document.getElementById("generateProgress");
 
         btn.disabled = true;
-        btn.innerHTML = '<div class="spinner"></div><span>Kontrol ediliyor...</span>';
+        btn.innerHTML =
+          '<div class="spinner"></div><span>Kontrol ediliyor...</span>';
         progress.classList.remove("hidden");
 
         try {
@@ -979,21 +1039,24 @@
 
           if (result.success) {
             if (result.pending === 0) {
-              document.getElementById("progressText").textContent = 
-                `✅ Tüm sahnelerin resmi mevcut! (${result.total} sahne)`;
+              document.getElementById(
+                "progressText"
+              ).textContent = `✅ Tüm sahnelerin resmi mevcut! (${result.total} sahne)`;
             } else {
-              document.getElementById("progressText").innerHTML = 
+              document.getElementById("progressText").innerHTML =
                 `⚠️ ${result.pending}/${result.total} sahne resim bekliyor.<br>` +
                 `<span style="font-size:0.8rem;">Mac'teki vertex-veo3 ile üretip API'ye bildirin.</span>`;
             }
             setTimeout(() => refreshProject(), 1000);
           } else {
-            document.getElementById("progressText").textContent = 
-              `❌ Hata: ${result.error}`;
+            document.getElementById(
+              "progressText"
+            ).textContent = `❌ Hata: ${result.error}`;
           }
         } catch (error) {
-          document.getElementById("progressText").textContent = 
-            `❌ Hata: ${error.message}`;
+          document.getElementById(
+            "progressText"
+          ).textContent = `❌ Hata: ${error.message}`;
         } finally {
           btn.disabled = false;
           btn.innerHTML = "📋 Resim Durumu";
@@ -1013,13 +1076,43 @@
       function updateGenerationStatus(status) {
         const statusEl = document.getElementById("generationStatus");
         const genBtn = document.getElementById("requestGenBtn");
-        
+
         const statusConfig = {
-          generation_requested: { color: "#ffc107", icon: "⏳", text: "Üretim talebi gönderildi, vertex-veo3 bekliyor...", bg: "rgba(255,193,7,0.1)", border: "rgba(255,193,7,0.3)" },
-          generating_images: { color: "#2196f3", icon: "🎨", text: "Resimler üretiliyor (Gemini)...", bg: "rgba(33,150,243,0.1)", border: "rgba(33,150,243,0.3)" },
-          generating_videos: { color: "#9c27b0", icon: "🎬", text: "Videolar üretiliyor (Grok)...", bg: "rgba(156,39,176,0.1)", border: "rgba(156,39,176,0.3)" },
-          generation_done: { color: "#4caf50", icon: "✅", text: "Resim ve video üretimi tamamlandı!", bg: "rgba(76,175,80,0.1)", border: "rgba(76,175,80,0.3)" },
-          generation_failed: { color: "#f44336", icon: "❌", text: "Üretim başarısız oldu!", bg: "rgba(244,67,54,0.1)", border: "rgba(244,67,54,0.3)" },
+          generation_requested: {
+            color: "#ffc107",
+            icon: "⏳",
+            text: "Üretim talebi gönderildi, vertex-veo3 bekliyor...",
+            bg: "rgba(255,193,7,0.1)",
+            border: "rgba(255,193,7,0.3)",
+          },
+          generating_images: {
+            color: "#2196f3",
+            icon: "🎨",
+            text: "Resimler üretiliyor (Gemini)...",
+            bg: "rgba(33,150,243,0.1)",
+            border: "rgba(33,150,243,0.3)",
+          },
+          generating_videos: {
+            color: "#9c27b0",
+            icon: "🎬",
+            text: "Videolar üretiliyor (Grok)...",
+            bg: "rgba(156,39,176,0.1)",
+            border: "rgba(156,39,176,0.3)",
+          },
+          generation_done: {
+            color: "#4caf50",
+            icon: "✅",
+            text: "Resim ve video üretimi tamamlandı!",
+            bg: "rgba(76,175,80,0.1)",
+            border: "rgba(76,175,80,0.3)",
+          },
+          generation_failed: {
+            color: "#f44336",
+            icon: "❌",
+            text: "Üretim başarısız oldu!",
+            bg: "rgba(244,67,54,0.1)",
+            border: "rgba(244,67,54,0.3)",
+          },
         };
 
         const config = statusConfig[status];
@@ -1029,17 +1122,27 @@
           statusEl.style.borderColor = config.border;
           statusEl.innerHTML = `
             <div style="display: flex; align-items: center; gap: 12px;">
-              ${status.includes("generating") ? '<div class="spinner"></div>' : `<span style="font-size:1.3rem;">${config.icon}</span>`}
+              ${
+                status.includes("generating")
+                  ? '<div class="spinner"></div>'
+                  : `<span style="font-size:1.3rem;">${config.icon}</span>`
+              }
               <div>
-                <div style="font-weight: 600; color: ${config.color};">${config.text}</div>
+                <div style="font-weight: 600; color: ${config.color};">${
+            config.text
+          }</div>
                 <div style="font-size: 0.8rem; color: #a0a0c0;">Sayfa otomatik güncelleniyor...</div>
               </div>
             </div>`;
 
           // Aktif üretim varsa butonu disable et
-          if (status.includes("generating") || status === "generation_requested") {
+          if (
+            status.includes("generating") ||
+            status === "generation_requested"
+          ) {
             genBtn.disabled = true;
-            genBtn.innerHTML = '<div class="spinner"></div><span>Üretiliyor...</span>';
+            genBtn.innerHTML =
+              '<div class="spinner"></div><span>Üretiliyor...</span>';
           } else {
             genBtn.disabled = false;
             genBtn.innerHTML = "🎬 Resim & Video Oluştur";
@@ -1079,7 +1182,8 @@
 
         const btn = document.getElementById("requestGenBtn");
         btn.disabled = true;
-        btn.innerHTML = '<div class="spinner"></div><span>Gönderiliyor...</span>';
+        btn.innerHTML =
+          '<div class="spinner"></div><span>Gönderiliyor...</span>';
 
         try {
           const response = await fetch(
@@ -1192,7 +1296,10 @@
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ voice: document.getElementById('languageSelect').value, temperature: 0.8 }),
+              body: JSON.stringify({
+                voice: document.getElementById("languageSelect").value,
+                temperature: 0.8,
+              }),
             }
           );
           const result = await response.json();
@@ -1363,7 +1470,10 @@
             {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ voice: document.getElementById('languageSelect').value, temperature: 0.8 }),
+              body: JSON.stringify({
+                voice: document.getElementById("languageSelect").value,
+                temperature: 0.8,
+              }),
             }
           );
           const result = await response.json();
@@ -1392,61 +1502,83 @@
 
       // GPU Test
       async function runGpuTest() {
-        const url1 = document.getElementById('gpuVideoUrl1').value.trim();
-        const url2 = document.getElementById('gpuVideoUrl2').value.trim();
-        const url3 = document.getElementById('gpuVideoUrl3').value.trim();
-        const targetDuration = parseInt(document.getElementById('gpuTargetDuration').value);
-        const testName = document.getElementById('gpuTestName').value.trim() || 'gpu_test';
-        
-        const msgEl = document.getElementById('gpuTestMessage');
-        const btn = document.getElementById('gpuTestBtn');
-        const resultsEl = document.getElementById('gpuTestResults');
-        
+        const url1 = document.getElementById("gpuVideoUrl1").value.trim();
+        const url2 = document.getElementById("gpuVideoUrl2").value.trim();
+        const url3 = document.getElementById("gpuVideoUrl3").value.trim();
+        const targetDuration = parseInt(
+          document.getElementById("gpuTargetDuration").value
+        );
+        const testName =
+          document.getElementById("gpuTestName").value.trim() || "gpu_test";
+
+        const msgEl = document.getElementById("gpuTestMessage");
+        const btn = document.getElementById("gpuTestBtn");
+        const resultsEl = document.getElementById("gpuTestResults");
+
         // En az 1 URL gerekli
-        const videoUrls = [url1, url2, url3].filter(u => u.length > 0);
+        const videoUrls = [url1, url2, url3].filter((u) => u.length > 0);
         if (videoUrls.length === 0) {
-          showMessage(msgEl, 'error', 'En az 1 video URL gerekli!');
+          showMessage(msgEl, "error", "En az 1 video URL gerekli!");
           return;
         }
-        
+
         btn.disabled = true;
-        btn.innerHTML = '<div class="spinner"></div><span>GPU Test Çalışıyor...</span>';
-        msgEl.className = 'message';
-        resultsEl.classList.add('hidden');
-        
+        btn.innerHTML =
+          '<div class="spinner"></div><span>GPU Test Çalışıyor...</span>';
+        msgEl.className = "message";
+        resultsEl.classList.add("hidden");
+
         try {
           // Python API'ye istek at (Node.js proxy üzerinden)
-          const response = await fetch('/api/gpu-test', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+          const response = await fetch("/api/gpu-test", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
               video_urls: videoUrls,
               target_duration_seconds: targetDuration,
-              test_name: testName
-            })
+              test_name: testName,
+            }),
           });
-          
+
           const result = await response.json();
-          
+
           if (result.success) {
-            showMessage(msgEl, 'success', '✅ GPU Test başarıyla tamamlandı!');
-            
+            showMessage(msgEl, "success", "✅ GPU Test başarıyla tamamlandı!");
+
             // Sonuçları göster
             const m = result.metrics;
-            const totalTimeMs = m.download_time_ms + m.encode_time_ms + m.upload_time_ms;
-            const encodingSpeed = (m.total_duration / (m.encode_time_ms / 1000)).toFixed(2);
-            
-            document.getElementById('gpuTestStats').innerHTML = `
-              <div class="stat-box"><div class="stat-value">${(m.download_time_ms/1000).toFixed(1)}s</div><div class="stat-label">İndirme</div></div>
-              <div class="stat-box"><div class="stat-value" style="color: #ff6b6b;">${(m.encode_time_ms/1000).toFixed(1)}s</div><div class="stat-label">Encoding</div></div>
-              <div class="stat-box"><div class="stat-value">${(m.upload_time_ms/1000).toFixed(1)}s</div><div class="stat-label">Yükleme</div></div>
-              <div class="stat-box"><div class="stat-value" style="color: #4caf50;">${(totalTimeMs/1000).toFixed(1)}s</div><div class="stat-label">Toplam</div></div>
-              <div class="stat-box"><div class="stat-value">${m.video_count}</div><div class="stat-label">Klip Sayısı</div></div>
-              <div class="stat-box"><div class="stat-value">${(m.total_duration/60).toFixed(1)} dk</div><div class="stat-label">Video Süresi</div></div>
+            const totalTimeMs =
+              m.download_time_ms + m.encode_time_ms + m.upload_time_ms;
+            const encodingSpeed = (
+              m.total_duration /
+              (m.encode_time_ms / 1000)
+            ).toFixed(2);
+
+            document.getElementById("gpuTestStats").innerHTML = `
+              <div class="stat-box"><div class="stat-value">${(
+                m.download_time_ms / 1000
+              ).toFixed(1)}s</div><div class="stat-label">İndirme</div></div>
+              <div class="stat-box"><div class="stat-value" style="color: #ff6b6b;">${(
+                m.encode_time_ms / 1000
+              ).toFixed(1)}s</div><div class="stat-label">Encoding</div></div>
+              <div class="stat-box"><div class="stat-value">${(
+                m.upload_time_ms / 1000
+              ).toFixed(1)}s</div><div class="stat-label">Yükleme</div></div>
+              <div class="stat-box"><div class="stat-value" style="color: #4caf50;">${(
+                totalTimeMs / 1000
+              ).toFixed(1)}s</div><div class="stat-label">Toplam</div></div>
+              <div class="stat-box"><div class="stat-value">${
+                m.video_count
+              }</div><div class="stat-label">Klip Sayısı</div></div>
+              <div class="stat-box"><div class="stat-value">${(
+                m.total_duration / 60
+              ).toFixed(
+                1
+              )} dk</div><div class="stat-label">Video Süresi</div></div>
               <div class="stat-box"><div class="stat-value" style="color: #667eea;">${encodingSpeed}x</div><div class="stat-label">Encoding Hızı</div></div>
             `;
-            
-            document.getElementById('gpuTestVideoContainer').innerHTML = `
+
+            document.getElementById("gpuTestVideoContainer").innerHTML = `
               <button class="video-play-btn" onclick="openVideoModal('${result.video_url}')" style="background: linear-gradient(135deg, #4caf50 0%, #2e7d32 100%);">
                 ▶️ Test Videosunu İzle
               </button>
@@ -1454,16 +1586,87 @@
                 🔗 CDN Link
               </a>
             `;
-            
-            resultsEl.classList.remove('hidden');
+
+            resultsEl.classList.remove("hidden");
           } else {
-            showMessage(msgEl, 'error', `❌ Hata: ${result.error}`);
+            showMessage(msgEl, "error", `❌ Hata: ${result.error}`);
           }
         } catch (error) {
-          showMessage(msgEl, 'error', `❌ Sunucu hatası: ${error.message}`);
+          showMessage(msgEl, "error", `❌ Sunucu hatası: ${error.message}`);
         } finally {
           btn.disabled = false;
-          btn.innerHTML = '🚀 GPU Test Başlat';
+          btn.innerHTML = "🚀 GPU Test Başlat";
+        }
+      }
+
+      // Gemini API ile resim üret
+      async function generateImagesWithGemini() {
+        if (!currentProjectId) return;
+        const btn = document.getElementById('geminiGenBtn');
+        const model = document.getElementById('geminiModelSelect').value;
+        const progress = document.getElementById('generateProgress');
+        
+        if (!confirm(`Gemini API ile tüm resimleri üretmek istiyor musunuz?\nModel: ${model}`)) return;
+        
+        btn.disabled = true;
+        btn.innerHTML = '<div class="spinner"></div><span>Üretiliyor...</span>';
+        progress.classList.remove('hidden');
+        document.getElementById('progressText').textContent = 'Gemini API ile resimler üretiliyor...';
+        
+        try {
+          const response = await fetch('/api/gemini/generate-project', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ projectId: currentProjectId, model }),
+          });
+          const result = await response.json();
+          
+          if (result.success) {
+            document.getElementById('progressText').textContent = '✅ Resim üretimi başlatıldı! Sayfayı yenileyin...';
+            // Durumu takip et
+            let checkCount = 0;
+            const checker = setInterval(async () => {
+              checkCount++;
+              try {
+                const r = await fetch(`/api/projects/${currentProjectId}`);
+                const data = await r.json();
+                if (data.success) {
+                  const p = data.project;
+                  const done = p.scenes.filter(s => s.imageUrl).length;
+                  const total = p.scenes.length;
+                  const processing = p.scenes.filter(s => s.status === 'image_processing').length;
+                  document.getElementById('progressText').textContent = 
+                    `🖼️ ${done}/${total} resim tamamlandı${processing > 0 ? `, ${processing} işleniyor...` : ''}`;
+                  
+                  // Tabloyu güncelle
+                  viewProject(currentProjectId);
+                  
+                  if (done >= total || p.status === 'generation_done' || p.status === 'generation_failed') {
+                    clearInterval(checker);
+                    document.getElementById('progressText').textContent = 
+                      `✅ Tamamlandı! ${done}/${total} resim üretildi.`;
+                    btn.disabled = false;
+                    btn.innerHTML = '🖼️ Resimleri Üret (Gemini API)';
+                    setTimeout(() => progress.classList.add('hidden'), 5000);
+                  }
+                }
+              } catch (e) {}
+              if (checkCount > 120) { // 10dk max
+                clearInterval(checker);
+                btn.disabled = false;
+                btn.innerHTML = '🖼️ Resimleri Üret (Gemini API)';
+              }
+            }, 5000);
+          } else {
+            document.getElementById('progressText').textContent = `❌ Hata: ${result.error}`;
+            btn.disabled = false;
+            btn.innerHTML = '🖼️ Resimleri Üret (Gemini API)';
+          }
+        } catch (error) {
+          document.getElementById('progressText').textContent = `❌ Hata: ${error.message}`;
+          btn.disabled = false;
+          btn.innerHTML = '🖼️ Resimleri Üret (Gemini API)';
+          progress.classList.add('hidden');
         }
       }
 

@@ -84,7 +84,10 @@ async function uploadFile(filepath, key, contentType = "image/jpeg") {
       })
     );
 
-    const url = `${publicUrl}/${encodeURIComponent(key)}`;
+    const url = `${publicUrl}/${key
+      .split("/")
+      .map(encodeURIComponent)
+      .join("/")}`;
     console.log(`✅ R2 BAŞARILI!`);
     console.log(`🔗 URL: ${url}`);
     console.log(`================================\n`);
@@ -121,7 +124,10 @@ async function uploadBuffer(buffer, key, contentType = "image/jpeg") {
       })
     );
 
-    const url = `${publicUrl}/${encodeURIComponent(key)}`;
+    const url = `${publicUrl}/${key
+      .split("/")
+      .map(encodeURIComponent)
+      .join("/")}`;
     console.log(`✅ R2 BAŞARILI!`);
     console.log(`🔗 URL: ${url}`);
     console.log(`================================\n`);
