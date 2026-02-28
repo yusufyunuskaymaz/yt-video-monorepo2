@@ -765,13 +765,11 @@
           <!-- Karakter Ekleme Formu -->
           <div id="characterForm" class="hidden" style="margin-bottom: 15px; padding: 15px; background: rgba(0,0,0,0.2); border-radius: 10px;">
             <div style="display: flex; gap: 10px; align-items: end; flex-wrap: wrap;">
-              <div style="flex: 1; min-width: 120px;">
-                <label style="font-size: 0.8rem;">İsim</label>
-                <input type="text" id="charName" placeholder="Sultan" style="width:100%;padding:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.85rem;">
-              </div>
-              <div style="flex: 2; min-width: 200px;">
-                <label style="font-size: 0.8rem;">Açıklama (opsiyonel)</label>
-                <input type="text" id="charDesc" placeholder="Orta yaşlı padişah, kalın kaşlı..." style="width:100%;padding:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.85rem;">
+              <div style="min-width: 150px;">
+                <label style="font-size: 0.8rem;">Karakter Seç</label>
+                <select id="charName" style="width:100%;padding:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.85rem;">
+                  <option value="">Yükleniyor...</option>
+                </select>
               </div>
               <div>
                 <label style="font-size: 0.8rem;">Resim</label>
@@ -819,6 +817,7 @@
                   <th>Zaman</th>
                   <th>Anlatım</th>
                   <th>Görsel Açıklama</th>
+                  <th>Karakterler</th>
                   <th>Resim</th>
                   <th>Ses</th>
                   <th>Video</th>
@@ -961,6 +960,9 @@
               "detailTitle"
             ).textContent = `📽️ ${p.title}`;
 
+            // Proje verisini cache'le (dropdown vb. için)
+            cachedProjectData = p;
+
             // Default stil yükle
             document.getElementById('defaultStyleInput').value = p.defaultStyle || '';
 
@@ -986,16 +988,32 @@
             `;
 
             // Scenes table
+            // Proje karakterleri (project response'unda zaten var)
+            const projectChars = p.characters || [];
+
             document.getElementById("scenesBody").innerHTML = p.scenes
               .map(
-                (s) => `
+                (s) => {
+                  const sceneChars = s.characters ? JSON.parse(s.characters) : [];
+                  const charCheckboxes = projectChars.length > 0
+                    ? projectChars.map(c => `
+                        <label style="display:flex;align-items:center;gap:3px;cursor:pointer;font-size:0.75rem;color:#c0c0e0;white-space:nowrap;">
+                          <input type="checkbox" 
+                            ${sceneChars.includes(c.name) ? 'checked' : ''} 
+                            onchange="toggleSceneCharacter(${s.id}, '${c.name}', this.checked)"
+                            style="width:14px;height:14px;accent-color:#667eea;">
+                          ${c.name}
+                        </label>
+                      `).join('')
+                    : '<span style="color:#606080;font-size:0.75rem;">-</span>';
+
+                  return `
               <tr>
                 <td class="scene-num">${s.sceneNumber}</td>
                 <td>${s.timestamp}</td>
-                <td class="scene-text" title="${s.narration}">${
-                  s.narration
-                }</td>
+                <td class="scene-text" title="${s.narration}">${s.narration}</td>
                 <td class="scene-text" title="${s.subject}">${s.subject}</td>
+                <td style="min-width:90px;">${charCheckboxes}</td>
                 <td>${
                   s.imageUrl
                     ? `<img src="${s.imageUrl}" class="scene-img" onclick="openModal('${s.imageUrl}')">`
@@ -1016,11 +1034,10 @@
                     ? `<button class="video-play-btn" style="background: linear-gradient(135deg, #9c27b0 0%, #7b1fa2 100%);" onclick="openVideoModal('${s.mergedVideoUrl}')">▶️ Sesli</button>`
                     : '<span class="no-video">-</span>'
                 }</td>
-                <td><span class="status-badge status-${s.status}">${
-                  s.status
-                }</span></td>
+                <td><span class="status-badge status-${s.status}">${s.status}</span></td>
               </tr>
-            `
+            `;
+                }
               )
               .join("");
 
@@ -1067,6 +1084,7 @@
       }
 
       let currentProjectId = null;
+      let cachedProjectData = null;
 
       // Check image status (v2: images come from vertex-veo3)
       async function generateAllImages() {
@@ -1702,6 +1720,34 @@
         }
       }
 
+      // ─── Sahne Karakter Eşleştirme ──────────────────
+      async function toggleSceneCharacter(sceneId, charName, checked) {
+        try {
+          // Mevcut sahne verisini al
+          const res = await fetch(`/api/scenes/${sceneId}`);
+          const data = await res.json();
+          let chars = [];
+          if (data.success && data.scene.characters) {
+            chars = JSON.parse(data.scene.characters);
+          }
+          
+          if (checked && !chars.includes(charName)) {
+            chars.push(charName);
+          } else if (!checked) {
+            chars = chars.filter(c => c !== charName);
+          }
+
+          // Güncelle
+          await fetch(`/api/scenes/${sceneId}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ characters: JSON.stringify(chars) }),
+          });
+        } catch (e) {
+          console.error('Karakter eşleştirme hatası:', e);
+        }
+      }
+
       // ─── Default Stil ─────────────────────────────
       async function saveDefaultStyle() {
         if (!currentProjectId) return;
@@ -1720,14 +1766,47 @@
 
       // ─── Karakter Yönetimi ──────────────────────────
       function toggleCharacterForm() {
-        document.getElementById('characterForm').classList.toggle('hidden');
+        const form = document.getElementById('characterForm');
+        form.classList.toggle('hidden');
+        if (!form.classList.contains('hidden')) {
+          populateCharacterDropdown();
+        }
+      }
+
+      function populateCharacterDropdown() {
+        const select = document.getElementById('charName');
+        if (!cachedProjectData) return;
+
+        // Sahnelerdeki tüm karakter isimlerini topla
+        const allNames = new Set();
+        (cachedProjectData.scenes || []).forEach(s => {
+          if (s.characters) {
+            try {
+              const chars = JSON.parse(s.characters);
+              chars.forEach(n => allNames.add(n));
+            } catch(e) {}
+          }
+        });
+
+        // Zaten resmi yüklenmiş olanları çıkar
+        const uploadedNames = new Set((cachedProjectData.characters || []).map(c => c.name));
+        const available = [...allNames].filter(n => !uploadedNames.has(n));
+
+        if (available.length > 0) {
+          select.innerHTML = available.map(n =>
+            `<option value="${n}">${n}</option>`
+          ).join('');
+        } else if (allNames.size === 0) {
+          select.innerHTML = '<option value="">Sahnelerde karakter yok</option>';
+        } else {
+          select.innerHTML = '<option value="">Tüm karakterler eşleştirildi ✅</option>';
+        }
       }
 
       async function loadCharacters() {
-        if (!currentProjectId) return;
         const grid = document.getElementById('characterGrid');
         try {
-          const res = await fetch(`/api/projects/${currentProjectId}/characters`);
+          const res = await fetch('/api/characters');
           const data = await res.json();
           if (!data.success || data.characters.length === 0) {
             grid.innerHTML = '<p style="color: #606080; font-size: 0.85rem;">Henüz karakter eklenmemiş</p>';
@@ -1737,7 +1816,6 @@
             <div style="background: rgba(255,255,255,0.05); border-radius: 10px; padding: 8px; text-align: center; position: relative; width: 100px;">
               <img src="${c.imageUrl}" style="width: 80px; height: 80px; border-radius: 8px; object-fit: cover; cursor: pointer;" onclick="openModal('${c.imageUrl}')">
               <div style="font-size: 0.75rem; margin-top: 4px; color: #c0c0e0; font-weight: 500;">${c.name}</div>
-              ${c.description ? `<div style="font-size: 0.65rem; color: #808090; margin-top: 2px;">${c.description.substring(0, 30)}</div>` : ''}
               <button onclick="deleteCharacter(${c.id})" style="position: absolute; top: 2px; right: 2px; background: rgba(244,67,54,0.8); border: none; color: #fff; width: 18px; height: 18px; border-radius: 50%; font-size: 0.6rem; cursor: pointer; line-height: 18px;">✕</button>
             </div>
           `).join('');
@@ -1747,29 +1825,27 @@
       }
 
       async function uploadCharacter() {
-        const name = document.getElementById('charName').value.trim();
-        const desc = document.getElementById('charDesc').value.trim();
+        const select = document.getElementById('charName');
+        const name = select.value;
         const fileInput = document.getElementById('charImage');
-        if (!name) return alert('İsim gerekli');
+        if (!name) return alert('Karakter seçin');
         if (!fileInput.files[0]) return alert('Resim seçin');
 
         const formData = new FormData();
         formData.append('name', name);
-        formData.append('description', desc);
         formData.append('image', fileInput.files[0]);
 
         try {
-          const res = await fetch(`/api/projects/${currentProjectId}/characters`, {
+          const res = await fetch('/api/characters', {
             method: 'POST',
             body: formData,
           });
           const data = await res.json();
           if (data.success) {
-            document.getElementById('charName').value = '';
-            document.getElementById('charDesc').value = '';
             fileInput.value = '';
             document.getElementById('characterForm').classList.add('hidden');
             loadCharacters();
+            viewProject(currentProjectId);
           } else {
             alert('Hata: ' + data.error);
           }

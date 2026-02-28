@@ -48,9 +48,9 @@ model Scene {
 
 model Character {
   id          Int      @id @default(autoincrement())
-  projectId   Int
-  project     Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  name        String
+  projectId   Int?
+  project     Project? @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  name        String   @unique
   description String?
   imageUrl    String
   createdAt   DateTime @default(now())

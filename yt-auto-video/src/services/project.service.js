@@ -54,6 +54,9 @@ async function getProject(projectId) {
       scenes: {
         orderBy: { sceneNumber: "asc" },
       },
+      characters: {
+        orderBy: { createdAt: "asc" },
+      },
     },
   });
 }

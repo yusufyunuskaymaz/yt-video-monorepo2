@@ -8,12 +8,12 @@ const upload = multer({
   limits: { fileSize: 10 * 1024 * 1024 }, // 10MB
 });
 
-// GET /api/projects/:id/characters
-router.get("/projects/:id/characters", characterController.getCharacters);
+// GET /api/characters — Tüm karakterleri listele (global)
+router.get("/characters", characterController.getAllCharacters);
 
-// POST /api/projects/:id/characters (multipart: name, description, image)
+// POST /api/characters — Yeni karakter oluştur (global)
 router.post(
-  "/projects/:id/characters",
+  "/characters",
   upload.single("image"),
   characterController.createCharacter
 );

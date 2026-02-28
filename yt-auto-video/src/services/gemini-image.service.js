@@ -199,6 +199,18 @@ async function generateAndUploadForScene(projectId, sceneId, options = {}) {
     }
   }
 
+  // Önceki sahnenin resmini referans olarak ekle (sahne devamlılığı)
+  if (options.previousSceneBuffer) {
+    if (!sceneOptions.referenceImages) sceneOptions.referenceImages = [];
+    sceneOptions.referenceImages.push({
+      base64: options.previousSceneBuffer.toString("base64"),
+      mimeType: "image/png",
+    });
+    console.log(
+      `[Gemini] Sahne ${scene.sceneNumber}: önceki sahne referansı eklendi (devamlılık)`
+    );
+  }
+
   // Sahne durumunu güncelle
   await projectService.updateScene(sceneId, { status: "image_processing" });
 
@@ -232,7 +244,7 @@ async function generateAndUploadForScene(projectId, sceneId, options = {}) {
     console.log(
       `[Gemini] ✅ Sahne ${scene.sceneNumber} → ${imageUrl.substring(0, 60)}...`
     );
-    return { imageUrl };
+    return { imageUrl, imageBuffer };
   } catch (err) {
     await projectService.updateScene(sceneId, { status: "image_failed" });
     throw err;
@@ -274,10 +286,10 @@ async function generateAllForProject(projectId, options = {}) {
     );
   }
 
-  // Karakter referanslarını yükle (tüm sahneler için ortak)
+  // Karakter referanslarını yükle (global havuzdan, sahne bazında)
   let characterRefs = [];
   try {
-    characterRefs = await characterService.getCharacterImagesAsBase64(
+    characterRefs = await characterService.getCharacterImagesForProject(
       projectId
     );
     if (characterRefs.length > 0) {
@@ -307,14 +319,27 @@ async function generateAllForProject(projectId, options = {}) {
 
   let success = 0;
   let failed = 0;
+  let previousSceneBuffer = null; // Sahne devamlılığı için
 
   for (const scene of pendingScenes) {
     try {
-      await generateAndUploadForScene(projectId, scene.id, options);
+      // Önceki sahnenin resmini referans olarak ekle
+      const sceneOpts = { ...options };
+      if (previousSceneBuffer) {
+        sceneOpts.previousSceneBuffer = previousSceneBuffer;
+      }
+
+      const result = await generateAndUploadForScene(
+        projectId,
+        scene.id,
+        sceneOpts
+      );
+      previousSceneBuffer = result.imageBuffer; // Sonraki sahne için sakla
       success++;
     } catch (err) {
       console.error(`[Gemini] Sahne ${scene.sceneNumber} hatası:`, err.message);
       failed++;
+      previousSceneBuffer = null; // Hata durumunda zinciri kır
     }
 
     // Rate limit — sahneler arası bekleme

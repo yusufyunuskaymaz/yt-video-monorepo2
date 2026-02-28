@@ -1,13 +1,11 @@
 const characterService = require("../services/character.service");
 
 /**
- * GET /api/projects/:id/characters
+ * GET /api/characters — Tüm karakterleri listele (global)
  */
-async function getCharacters(req, res) {
+async function getAllCharacters(req, res) {
   try {
-    const characters = await characterService.getCharactersByProject(
-      req.params.id
-    );
+    const characters = await characterService.getAllCharacters();
     res.json({ success: true, characters });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -15,25 +13,26 @@ async function getCharacters(req, res) {
 }
 
 /**
- * POST /api/projects/:id/characters
- * multipart: name, description, image (file)
+ * POST /api/characters — Yeni karakter oluştur (global)
+ * multipart: name, image (file)
  */
 async function createCharacter(req, res) {
   try {
-    const { name, description } = req.body;
+    const { name } = req.body;
     if (!name) return res.status(400).json({ error: "name gerekli" });
     if (!req.file) return res.status(400).json({ error: "image gerekli" });
 
     const character = await characterService.createCharacter(
-      req.params.id,
       name,
-      description || "",
       req.file.buffer,
       req.file.mimetype
     );
 
     res.json({ success: true, character });
   } catch (err) {
+    if (err.code === "P2002") {
+      return res.status(400).json({ error: `"${req.body.name}" zaten mevcut` });
+    }
     res.status(500).json({ error: err.message });
   }
 }
@@ -67,7 +66,7 @@ async function deleteCharacter(req, res) {
 }
 
 module.exports = {
-  getCharacters,
+  getAllCharacters,
   createCharacter,
   updateCharacter,
   deleteCharacter,
