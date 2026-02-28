@@ -26,6 +26,7 @@ async function createProject(projectData) {
           characters: scene.characters
             ? JSON.stringify(scene.characters)
             : null,
+          usePrevRef: scene.use_prev_ref === true,
           videoPrompt: scene.video_prompt || scene.videoPrompt || null,
           status: "pending",
         })),

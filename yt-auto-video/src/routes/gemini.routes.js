@@ -11,4 +11,7 @@ router.post("/generate-scene", geminiController.generateScene);
 // POST /api/gemini/generate-project — Tüm proje resimlerini üret
 router.post("/generate-project", geminiController.generateProject);
 
+// POST /api/gemini/cancel/:projectId — Üretimi iptal et
+router.post("/cancel/:projectId", geminiController.cancelGeneration);
+
 module.exports = router;

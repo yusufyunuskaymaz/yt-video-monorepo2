@@ -87,6 +87,7 @@ async function getCharacterImagesAsBase64ByNames(characterNames) {
       const buffer = await downloadToBuffer(char.imageUrl);
       results.push({
         name: char.name,
+        imageUrl: char.imageUrl,
         base64: buffer.toString("base64"),
         mimeType: char.imageUrl.endsWith(".png") ? "image/png" : "image/jpeg",
       });

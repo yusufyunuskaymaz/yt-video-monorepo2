@@ -30,6 +30,7 @@ model Scene {
   narration        String
   subject          String
   characters       String? // JSON array: ["Sultan", "Vezir"]
+  usePrevRef       Boolean  @default(false)
   videoPrompt      String?
   imageUrl         String?
   audioUrl         String?
@@ -38,6 +39,7 @@ model Scene {
   audioTemperature Float?
   videoUrl         String?
   mergedVideoUrl   String?
+  generationLog    String? // JSON: prompt, refs, model, duration
   status           String   @default("pending")
   createdAt        DateTime @default(now())
   updatedAt        DateTime @updatedAt

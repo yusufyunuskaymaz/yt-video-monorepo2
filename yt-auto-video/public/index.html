@@ -680,6 +680,16 @@
             🖼️ Resimleri Üret (Gemini API)
           </button>
           <button
+            class="btn hidden"
+            id="cancelGenBtn"
+            onclick="cancelGeneration()"
+            style="
+              background: linear-gradient(135deg, #f44336 0%, #c62828 100%);
+            "
+          >
+            ⛔ Üretimi Durdur
+          </button>
+          <button
             class="btn btn-pipeline"
             id="requestGenBtn"
             onclick="requestGeneration()"
@@ -753,8 +763,18 @@
             <h3 style="font-size: 0.95rem; color: #a0a0c0;">🎨 Default Stil</h3>
             <button class="btn btn-secondary btn-sm" onclick="saveDefaultStyle()">💾 Kaydet</button>
           </div>
-          <textarea id="defaultStyleInput" placeholder="Örn: 3D Pixar animation style, Ottoman era, warm golden lighting, detailed textures, cinematic composition" style="width:100%;min-height:60px;padding:10px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-family:inherit;font-size:0.85rem;resize:vertical;"></textarea>
-          <p style="font-size: 0.7rem; color: #606080; margin-top: 4px;">Her sahne promptunun başına otomatik eklenir</p>
+          <select id="stylePresets" onchange="applyStylePreset(this.value)" style="width:100%;padding:8px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-size:0.85rem;margin-bottom:8px;">
+            <option value="">-- Hazır Stil Seç --</option>
+            <option value="3D Pixar animation style, Ottoman era, warm golden lighting, detailed textures, cinematic composition">🎬 Pixar Ottoman</option>
+            <option value="Studio Ghibli anime style, soft watercolor textures, dreamy atmosphere, hand-painted feel, gentle pastel lighting">🌸 Studio Ghibli</option>
+            <option value="Realistic digital painting, dramatic chiaroscuro lighting, museum-quality oil painting look, rich deep colors">🖼️ Realistic Oil Painting</option>
+            <option value="Dark fantasy illustration style, moody atmospheric lighting, detailed gothic architecture, muted earth tones">⚔️ Dark Fantasy</option>
+            <option value="Bright children's storybook illustration, simple bold shapes, vivid primary colors, friendly cartoon style">📖 Storybook</option>
+            <option value="Cyberpunk neon style, futuristic city, holographic elements, purple and cyan color palette, rain-soaked streets">🌃 Cyberpunk</option>
+            <option value="Minimalist flat illustration, clean vector art, limited color palette, modern geometric shapes">🔷 Minimalist Flat</option>
+          </select>
+          <textarea id="defaultStyleInput" placeholder="Stil yazın veya yukarıdan seçin..." style="width:100%;min-height:60px;padding:10px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:8px;color:#fff;font-family:inherit;font-size:0.85rem;resize:vertical;"></textarea>
+          <p style="font-size: 0.7rem; color: #606080; margin-top: 4px;">Her sahne promptunun sonuna otomatik eklenir</p>
         </div>
         <!-- Karakterler Bölümü -->
         <div class="card" style="margin-bottom: 15px;">
@@ -966,6 +986,20 @@
             // Default stil yükle
             document.getElementById('defaultStyleInput').value = p.defaultStyle || '';
 
+            // Üretim devam ediyorsa iptal butonunu göster
+            const isGenerating = p.status === 'generating_images' || p.scenes.some(s => s.status === 'image_processing');
+            const cancelBtn = document.getElementById('cancelGenBtn');
+            const genBtn = document.getElementById('geminiGenBtn');
+            if (isGenerating) {
+              cancelBtn.classList.remove('hidden');
+              genBtn.disabled = true;
+              genBtn.innerHTML = '<div class="spinner"></div><span>Üretiliyor...</span>';
+            } else {
+              cancelBtn.classList.add('hidden');
+              genBtn.disabled = false;
+              genBtn.innerHTML = '🖼️ Resimleri Üret (Gemini API)';
+            }
+
             // Stats
             const pending = p.scenes.filter(
               (s) => s.status === "pending"
@@ -989,7 +1023,14 @@
 
             // Scenes table
             // Proje karakterleri (project response'unda zaten var)
-            const projectChars = p.characters || [];
+            // Global karakterleri getir
+            let globalChars = [];
+            try {
+              const charRes = await fetch('/api/characters');
+              const charData = await charRes.json();
+              if (charData.success) globalChars = charData.characters || [];
+            } catch(e) {}
+            const projectChars = globalChars;
 
             document.getElementById("scenesBody").innerHTML = p.scenes
               .map(
@@ -1007,8 +1048,59 @@
                       `).join('')
                     : '<span style="color:#606080;font-size:0.75rem;">-</span>';
 
+                  // Üretim logu
+                  let logHtml = '';
+                  if (s.generationLog) {
+                    try {
+                      const log = JSON.parse(s.generationLog);
+                      logHtml = `
+                        <tr class="scene-log-row" id="log-${s.id}" style="display:none;">
+                          <td colspan="10" style="padding:12px 16px;background:rgba(0,0,0,0.3);border-bottom:1px solid rgba(255,255,255,0.05);">
+                            <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;font-size:0.8rem;">
+                              <div>
+                                <div style="color:#667eea;font-weight:600;margin-bottom:4px;">📝 Prompt</div>
+                                <div style="color:#c0c0e0;white-space:pre-wrap;background:rgba(0,0,0,0.3);padding:8px;border-radius:6px;max-height:120px;overflow-y:auto;font-size:0.75rem;">${log.prompt || '-'}</div>
+                              </div>
+                              <div>
+                                <div style="color:#667eea;font-weight:600;margin-bottom:4px;">📊 Detaylar</div>
+                                <div style="display:flex;flex-direction:column;gap:4px;color:#c0c0e0;">
+                                  <span>🤖 Model: <b style="color:#fff;">${log.model || '-'}</b></span>
+                                  <span>⏱️ Süre: <b style="color:#fff;">${log.durationSec || '-'}s</b></span>
+                                  <span>🔗 Referans: <b style="color:#fff;">${log.refCount || 0} adet</b></span>
+                                  <span>🔄 Önceki sahne: <b style="color:${log.prevRefSent ? '#4caf50' : '#f44336'}">${log.prevRefReason || '-'}</b></span>
+                                  <span>📅 ${log.completedAt ? new Date(log.completedAt).toLocaleString('tr-TR') : '-'}</span>
+                                  ${log.error ? `<span style="color:#f44336;">❌ Hata: ${log.error}</span>` : ''}
+                                </div>
+                              </div>
+                            </div>
+                            <div style="margin-top:10px;display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start;">
+                              ${(log.refImages || []).length > 0 ? `
+                                <div>
+                                  <div style="color:#ff9800;font-weight:600;font-size:0.75rem;margin-bottom:4px;">📤 Gönderilen Referanslar</div>
+                                  <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                                    ${(log.refImages || []).map(r => r.url ? `
+                                      <div style="text-align:center;">
+                                        <img src="${r.url}" style="width:60px;height:60px;border-radius:6px;object-fit:cover;border:2px solid #ff9800;cursor:pointer;" onclick="event.stopPropagation();openModal('${r.url}')">
+                                        <div style="font-size:0.6rem;color:#ff9800;margin-top:2px;">${r.name}</div>
+                                      </div>
+                                    ` : `<span style="font-size:0.7rem;color:#808090;">${r.name}</span>`).join('')}
+                                  </div>
+                                </div>
+                              ` : ''}
+                              ${log.imageUrl ? `
+                                <div>
+                                  <div style="color:#4caf50;font-weight:600;font-size:0.75rem;margin-bottom:4px;">📥 Üretilen Resim</div>
+                                  <img src="${log.imageUrl}" style="width:80px;height:80px;border-radius:6px;object-fit:cover;border:2px solid #4caf50;cursor:pointer;" onclick="event.stopPropagation();openModal('${log.imageUrl}')">
+                                </div>
+                              ` : ''}
+                            </div>
+                          </td>
+                        </tr>`;
+                    } catch(e) {}
+                  }
+
                   return `
-              <tr>
+              <tr onclick="toggleSceneLog(${s.id})" style="cursor:pointer;" title="Detaylar için tıkla">
                 <td class="scene-num">${s.sceneNumber}</td>
                 <td>${s.timestamp}</td>
                 <td class="scene-text" title="${s.narration}">${s.narration}</td>
@@ -1016,26 +1108,61 @@
                 <td style="min-width:90px;">${charCheckboxes}</td>
                 <td>${
                   s.imageUrl
-                    ? `<img src="${s.imageUrl}" class="scene-img" onclick="openModal('${s.imageUrl}')">`
+                    ? `<img src="${s.imageUrl}" class="scene-img" onclick="event.stopPropagation();openModal('${s.imageUrl}')">`
                     : '<span style="color:#606080">-</span>'
                 }</td>
                 <td>${
                   s.audioUrl
-                    ? `<button class="audio-play-btn" onclick="playAudio('${s.audioUrl}')">🔊 Dinle</button>`
+                    ? `<button class="audio-play-btn" onclick="event.stopPropagation();playAudio('${s.audioUrl}')">🔊 Dinle</button>`
                     : '<span class="no-video">-</span>'
                 }</td>
                 <td>${
                   s.videoUrl
-                    ? `<button class="video-play-btn" onclick="openVideoModal('${s.videoUrl}')">▶️ Sessiz</button>`
+                    ? `<button class="video-play-btn" onclick="event.stopPropagation();openVideoModal('${s.videoUrl}')">▶️ Sessiz</button>`
                     : '<span class="no-video">-</span>'
                 }</td>
                 <td>${
                   s.mergedVideoUrl
-                    ? `<button class="video-play-btn" style="background: linear-gradient(135deg, #9c27b0 0%, #7b1fa2 100%);" onclick="openVideoModal('${s.mergedVideoUrl}')">▶️ Sesli</button>`
+                    ? `<button class="video-play-btn" style="background: linear-gradient(135deg, #9c27b0 0%, #7b1fa2 100%);" onclick="event.stopPropagation();openVideoModal('${s.mergedVideoUrl}')">▶️ Sesli</button>`
                     : '<span class="no-video">-</span>'
                 }</td>
-                <td><span class="status-badge status-${s.status}">${s.status}</span></td>
+                <td>
+                  <span class="status-badge status-${s.status}">${s.status}</span>
+                  <button onclick="event.stopPropagation();toggleRegenPanel(${s.id})" style="margin-left:4px;background:linear-gradient(135deg,#ff9800,#f57c00);border:none;color:#fff;padding:2px 6px;border-radius:4px;font-size:0.65rem;cursor:pointer;" title="Tekrar Üret">🔄</button>
+                </td>
               </tr>
+              <tr id="regen-${s.id}" style="display:none;">
+                <td colspan="10" style="padding:12px 16px;background:rgba(255,152,0,0.08);border-bottom:1px solid rgba(255,152,0,0.2);">
+                  <div style="font-size:0.8rem;color:#ff9800;font-weight:600;margin-bottom:8px;">🔄 Tekrar Üret — Sahne ${s.sceneNumber}</div>
+                  <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;font-size:0.8rem;">
+                    <div>
+                      <label style="color:#c0c0e0;font-size:0.75rem;">🎭 Karakter Referansları</label>
+                      <div id="regen-chars-${s.id}" style="display:flex;flex-direction:column;gap:2px;margin-top:4px;">
+                        ${(projectChars || []).map(c => `
+                          <label style="display:flex;align-items:center;gap:4px;cursor:pointer;color:#c0c0e0;font-size:0.75rem;">
+                            <input type="checkbox" value="${c.name}" style="accent-color:#ff9800;"> ${c.name}
+                          </label>
+                        `).join('') || '<span style="color:#606080;">Karakter yok</span>'}
+                      </div>
+                    </div>
+                    <div>
+                      <label style="color:#c0c0e0;font-size:0.75rem;">📸 Referans Sahne</label>
+                      <select id="regen-ref-${s.id}" style="width:100%;margin-top:4px;padding:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#fff;font-size:0.75rem;">
+                        <option value="">Referans yok</option>
+                        ${p.scenes.filter(sc => sc.imageUrl).map(sc => `
+                          <option value="${sc.id}">Sahne ${sc.sceneNumber}</option>
+                        `).join('')}
+                      </select>
+                      <label style="color:#c0c0e0;font-size:0.75rem;margin-top:6px;display:block;">📝 Prompt (opsiyonel)</label>
+                      <textarea id="regen-prompt-${s.id}" style="width:100%;margin-top:4px;padding:6px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.1);border-radius:6px;color:#fff;font-size:0.75rem;min-height:50px;resize:vertical;">${s.subject}</textarea>
+                    </div>
+                    <div style="display:flex;align-items:flex-end;">
+                      <button onclick="event.stopPropagation();regenerateScene(${s.id})" style="padding:8px 16px;background:linear-gradient(135deg,#ff9800,#f57c00);border:none;color:#fff;border-radius:6px;cursor:pointer;font-size:0.8rem;font-weight:600;">▶️ Üret</button>
+                    </div>
+                  </div>
+                </td>
+              </tr>
+              ${logHtml}
             `;
                 }
               )
@@ -1721,6 +1848,75 @@
       }
 
       // ─── Sahne Karakter Eşleştirme ──────────────────
+      function toggleRegenPanel(sceneId) {
+        const row = document.getElementById(`regen-${sceneId}`);
+        if (row) {
+          row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+        }
+      }
+
+      async function regenerateScene(sceneId) {
+        if (!currentProjectId) return;
+
+        // Seçili karakterleri topla
+        const charContainer = document.getElementById(`regen-chars-${sceneId}`);
+        const characterNames = [...charContainer.querySelectorAll('input[type=checkbox]:checked')].map(cb => cb.value);
+
+        // Referans sahne
+        const refSelect = document.getElementById(`regen-ref-${sceneId}`);
+        const referenceSceneId = refSelect.value ? parseInt(refSelect.value) : null;
+
+        // Custom prompt
+        const promptInput = document.getElementById(`regen-prompt-${sceneId}`);
+        const customPrompt = promptInput.value.trim() || null;
+
+        // Model
+        const model = document.getElementById('geminiModelSelect').value;
+
+        if (!confirm(`Sahne tekrar üretilecek.\n\nKarakterler: ${characterNames.length > 0 ? characterNames.join(', ') : 'Yok'}\nReferans sahne: ${referenceSceneId ? 'Sahne ' + refSelect.selectedOptions[0].text : 'Yok'}\n\nDevam?`)) return;
+
+        // Butonu disable et
+        const btn = event.target;
+        const origText = btn.innerHTML;
+        btn.disabled = true;
+        btn.innerHTML = '⏳ Üretiliyor...';
+
+        try {
+          const res = await fetch('/api/gemini/generate-scene', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              projectId: currentProjectId,
+              sceneId,
+              model,
+              characterNames: characterNames.length > 0 ? characterNames : undefined,
+              referenceSceneId,
+              customPrompt,
+            }),
+          });
+          const data = await res.json();
+          if (data.success) {
+            alert('✅ Sahne başarıyla üretildi!');
+            // Kısa gecikme ile yenile (cache temizlenmesi için)
+            setTimeout(() => viewProject(currentProjectId), 500);
+          } else {
+            alert('Hata: ' + data.error);
+          }
+        } catch (e) {
+          alert('Üretim hatası: ' + e.message);
+        } finally {
+          btn.disabled = false;
+          btn.innerHTML = origText;
+        }
+      }
+
+      function toggleSceneLog(sceneId) {
+        const row = document.getElementById(`log-${sceneId}`);
+        if (row) {
+          row.style.display = row.style.display === 'none' ? 'table-row' : 'none';
+        }
+      }
+
       async function toggleSceneCharacter(sceneId, charName, checked) {
         try {
           // Mevcut sahne verisini al
@@ -1749,6 +1945,12 @@
       }
 
       // ─── Default Stil ─────────────────────────────
+      function applyStylePreset(value) {
+        if (value) {
+          document.getElementById('defaultStyleInput').value = value;
+        }
+      }
+
       async function saveDefaultStyle() {
         if (!currentProjectId) return;
         const style = document.getElementById('defaultStyleInput').value.trim();
@@ -1865,6 +2067,25 @@
       }
 
       // Gemini modellerini API'den çek
+      // ─── Üretimi İptal Et ──────────────────────────
+      async function cancelGeneration() {
+        if (!currentProjectId) return;
+        if (!confirm('Üretimi durdurmak istiyor musunuz?')) return;
+
+        try {
+          await fetch(`/api/gemini/cancel/${currentProjectId}`, { method: 'POST' });
+          document.getElementById('progressText').textContent = '⛔ Üretim iptal edildi!';
+          document.getElementById('cancelGenBtn').classList.add('hidden');
+          const btn = document.getElementById('geminiGenBtn');
+          btn.disabled = false;
+          btn.innerHTML = '🖼️ Resimleri Üret (Gemini API)';
+          // Sayfayı yenile
+          setTimeout(() => viewProject(currentProjectId), 2000);
+        } catch (e) {
+          alert('İptal hatası: ' + e.message);
+        }
+      }
+
       async function loadGeminiModels() {
         const select = document.getElementById('geminiModelSelect');
         try {
@@ -1894,6 +2115,7 @@
         
         btn.disabled = true;
         btn.innerHTML = '<div class="spinner"></div><span>Üretiliyor...</span>';
+        document.getElementById('cancelGenBtn').classList.remove('hidden');
         progress.classList.remove('hidden');
         document.getElementById('progressText').textContent = 'Gemini API ile resimler üretiliyor...';
         
