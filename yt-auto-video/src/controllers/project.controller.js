@@ -176,13 +176,12 @@ async function generateAllImages(req, res) {
 }
 
 /**
- * Tüm sahneler için video oluştur (async - callback ile)
+ * Tüm sahneler için video oluştur (Veo 3.1 API)
  * POST /api/projects/:id/generate-videos
  */
 async function generateAllVideos(req, res) {
   try {
     const { id } = req.params;
-    const { sync = false } = req.query; // ?sync=true ile senkron çalıştırılabilir
 
     const project = await projectService.getProject(id);
 
@@ -192,115 +191,25 @@ async function generateAllVideos(req, res) {
         .json({ success: false, error: "Proje bulunamadı" });
     }
 
-    // image_done durumundaki sahneleri al (resmi hazır, videosu yok)
-    const readyScenes = project.scenes.filter(
-      (s) => s.status === "image_done" && s.imageUrl && !s.videoUrl
-    );
-
-    if (readyScenes.length === 0) {
-      return res.json({
-        success: true,
-        message: "Video üretilecek sahne yok (resmi hazır olanlar işlenecek)",
-        processed: 0,
-      });
-    }
-
-    console.log(`\n🎬 ========== VIDEO GENERATION ==========`);
+    console.log(`\n🎬 ========== VEO VIDEO GENERATION ==========`);
     console.log(`📁 Proje: ${project.title}`);
-    console.log(`🎬 İşlenecek sahne: ${readyScenes.length}`);
-    console.log(`==========================================\n`);
+    console.log(`============================================\n`);
 
-    // Video service'i import et
-    const videoService = require("../services/video.service");
+    // Veo video service
+    const veoService = require("../services/veo-video.service");
 
-    // Python API sağlık kontrolü
-    const isHealthy = await videoService.checkPythonApiHealth();
-    if (!isHealthy) {
-      return res.status(503).json({
-        success: false,
-        error:
-          "Python Video API erişilemez. Lütfen API'nin çalıştığından emin olun.",
-      });
-    }
+    // Hemen yanıt dön, arka planda üret
+    res.json({
+      success: true,
+      message: "Video üretimi başlatıldı (Veo 3.1)",
+    });
 
-    // Proje durumunu güncelle
-    await projectService.updateProjectStatus(id, "video_processing");
-
-    if (sync) {
-      // Senkron mod - tüm videoları sırayla üret ve bekle
-      let processed = 0;
-      let failed = 0;
-
-      for (const scene of readyScenes) {
-        console.log(`\n📍 Sahne ${scene.sceneNumber} video üretiliyor...`);
-
-        await projectService.updateScene(scene.id, {
-          status: "video_processing",
-        });
-
-        const result = await videoService.generateVideoSync({
-          imageUrl: scene.imageUrl,
-          sceneId: scene.id,
-          duration: 10,
-          panDirection: "vertical",
-          projectId: id,
-          sceneNumber: scene.sceneNumber,
-        });
-
-        if (result.success) {
-          await projectService.updateScene(scene.id, {
-            videoUrl: result.videoUrl,
-            status: "completed",
-          });
-          processed++;
-          console.log(`✅ Sahne ${scene.sceneNumber} tamamlandı!`);
-        } else {
-          await projectService.updateScene(scene.id, {
-            status: "video_failed",
-          });
-          failed++;
-          console.log(`❌ Sahne ${scene.sceneNumber} başarısız!`);
-        }
-      }
-
-      // Proje durumunu güncelle
-      const finalStatus =
-        failed === 0
-          ? "completed"
-          : failed === readyScenes.length
-          ? "failed"
-          : "partial";
-      await projectService.updateProjectStatus(id, finalStatus);
-
-      return res.json({
-        success: true,
-        message: "Video üretimi tamamlandı",
-        processed,
-        failed,
-        total: readyScenes.length,
-      });
-    } else {
-      // Async mod - istekleri gönder, callback bekle
-      for (const scene of readyScenes) {
-        await projectService.updateScene(scene.id, {
-          status: "video_processing",
-        });
-
-        await videoService.requestVideoGeneration({
-          imageUrl: scene.imageUrl,
-          sceneId: scene.id,
-          duration: 10,
-          panDirection: "vertical",
-          projectId: id,
-          sceneNumber: scene.sceneNumber,
-        });
-      }
-
-      return res.status(202).json({
-        success: true,
-        message: `${readyScenes.length} video üretimi başlatıldı. Tamamlandığında webhook ile bildirilecek.`,
-        scenesProcessing: readyScenes.length,
-      });
+    // Arka planda üret
+    try {
+      const result = await veoService.generateAllVideos(id);
+      console.log(`✅ Video üretimi tamamlandı:`, result);
+    } catch (err) {
+      console.error(`❌ Video üretim hatası:`, err.message);
     }
   } catch (error) {
     console.error("❌ Video üretim hatası:", error);

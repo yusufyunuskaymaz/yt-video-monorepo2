@@ -6,8 +6,10 @@ const http = require("http");
 /**
  * Tüm karakterleri getir (global)
  */
-async function getAllCharacters() {
+async function getAllCharacters(projectId) {
+  const where = projectId ? { projectId: parseInt(projectId) } : {};
   return prisma.character.findMany({
+    where,
     orderBy: { createdAt: "asc" },
   });
 }
@@ -22,10 +24,10 @@ async function getCharacterByName(name) {
 /**
  * İsimlere göre birden fazla karakter getir
  */
-async function getCharactersByNames(names) {
-  return prisma.character.findMany({
-    where: { name: { in: names } },
-  });
+async function getCharactersByNames(names, projectId) {
+  const where = { name: { in: names } };
+  if (projectId) where.projectId = parseInt(projectId);
+  return prisma.character.findMany({ where });
 }
 
 /**
@@ -34,21 +36,26 @@ async function getCharactersByNames(names) {
  * @param {Buffer} imageBuffer
  * @param {string} mimeType
  */
-async function createCharacter(name, imageBuffer, mimeType) {
+async function createCharacter(name, imageBuffer, mimeType, projectId) {
   const ext = mimeType.includes("png") ? "png" : "jpg";
   const slugName = name
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, "_")
     .substring(0, 30);
-  const r2Key = `characters/global/${slugName}_${Date.now()}.${ext}`;
+  const prefix = projectId ? `characters/${projectId}` : "characters/global";
+  const r2Key = `${prefix}/${slugName}_${Date.now()}.${ext}`;
 
   const imageUrl = await r2Service.uploadBuffer(imageBuffer, r2Key, mimeType);
 
   const character = await prisma.character.create({
-    data: { name, imageUrl },
+    data: { name, imageUrl, projectId: projectId ? parseInt(projectId) : null },
   });
 
-  console.log(`[Character] ✅ ${name} oluşturuldu (global) → ${imageUrl}`);
+  console.log(
+    `[Character] ✅ ${name} oluşturuldu (proje:${
+      projectId || "global"
+    }) → ${imageUrl}`
+  );
   return character;
 }
 
@@ -75,10 +82,10 @@ async function deleteCharacter(characterId) {
  * Sahne bazında karakter resimlerini base64 al (Gemini API için)
  * @param {string[]} characterNames - ["Sultan", "Vezir"]
  */
-async function getCharacterImagesAsBase64ByNames(characterNames) {
+async function getCharacterImagesAsBase64ByNames(characterNames, projectId) {
   if (!characterNames || characterNames.length === 0) return [];
 
-  const characters = await getCharactersByNames(characterNames);
+  const characters = await getCharactersByNames(characterNames, projectId);
   if (characters.length === 0) return [];
 
   const results = [];
@@ -118,7 +125,7 @@ async function getCharacterImagesForProject(projectId) {
   }
 
   if (allNames.size === 0) return [];
-  return getCharacterImagesAsBase64ByNames([...allNames]);
+  return getCharacterImagesAsBase64ByNames([...allNames], projectId);
 }
 
 /**

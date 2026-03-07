@@ -5,7 +5,8 @@ const characterService = require("../services/character.service");
  */
 async function getAllCharacters(req, res) {
   try {
-    const characters = await characterService.getAllCharacters();
+    const { projectId } = req.query;
+    const characters = await characterService.getAllCharacters(projectId);
     res.json({ success: true, characters });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -18,14 +19,15 @@ async function getAllCharacters(req, res) {
  */
 async function createCharacter(req, res) {
   try {
-    const { name } = req.body;
+    const { name, projectId } = req.body;
     if (!name) return res.status(400).json({ error: "name gerekli" });
     if (!req.file) return res.status(400).json({ error: "image gerekli" });
 
     const character = await characterService.createCharacter(
       name,
       req.file.buffer,
-      req.file.mimetype
+      req.file.mimetype,
+      projectId
     );
 
     res.json({ success: true, character });

@@ -27,6 +27,20 @@ router.post("/:id/generate-videos", projectController.generateAllVideos);
 // POST /api/projects/:id/merge-videos - Video + Ses birleştir
 router.post("/:id/merge-videos", projectController.mergeAllVideos);
 
+// POST /api/projects/:id/merge-dubbed - Dublajlı videoları birleştir
+router.post("/:id/merge-dubbed", async (req, res) => {
+  try {
+    const { mergeDubbedVideos } = require("../services/video-merge.service");
+    res.json({ success: true, message: "Dublajlı birleştirme başlatıldı" });
+    const result = await mergeDubbedVideos(req.params.id);
+    console.log("✅ Dublajlı birleştirme tamamlandı:", result.url);
+  } catch (error) {
+    console.error("❌ Dublajlı birleştirme hatası:", error.message);
+    if (!res.headersSent) {
+      res.status(500).json({ success: false, error: error.message });
+    }
+  }
+});
 // POST /api/projects/:id/generate-pipeline - Tam akış (Resim→Ses→Video→Birleştir)
 router.post("/:id/generate-pipeline", projectController.generateFullPipeline);
 
@@ -94,6 +108,26 @@ router.get("/performance/project/:id", (req, res) => {
 router.post("/performance/clear", (req, res) => {
   timing.clearLog();
   res.json({ success: true, message: "Performance log temizlendi" });
+});
+
+// POST /api/projects/:id/concat-videos - Sahne videolarını birleştir (FFmpeg)
+router.post("/:id/concat-videos", async (req, res) => {
+  try {
+    const mergeService = require("../services/video-merge.service");
+
+    // Hemen yanıt dön
+    res.json({ success: true, message: "Birleştirme başlatıldı" });
+
+    // Arka planda birleştir
+    try {
+      const result = await mergeService.mergeProjectVideos(req.params.id);
+      console.log(`✅ Birleştirme tamamlandı: ${result.url}`);
+    } catch (err) {
+      console.error(`❌ Birleştirme hatası: ${err.message}`);
+    }
+  } catch (error) {
+    res.status(500).json({ success: false, error: error.message });
+  }
 });
 
 module.exports = router;

@@ -30,6 +30,8 @@ model Scene {
   narration        String
   subject          String
   characters       String? // JSON array: ["Sultan", "Vezir"]
+  isDialog         Boolean  @default(false)
+  speechText       String? // Dialog konuşma metni — ElevenLabs'a bu gönderilir
   usePrevRef       Boolean  @default(false)
   videoPrompt      String?
   imageUrl         String?
@@ -39,6 +41,7 @@ model Scene {
   audioTemperature Float?
   videoUrl         String?
   mergedVideoUrl   String?
+  dubbedVideoUrl   String?
   generationLog    String? // JSON: prompt, refs, model, duration
   status           String   @default("pending")
   createdAt        DateTime @default(now())

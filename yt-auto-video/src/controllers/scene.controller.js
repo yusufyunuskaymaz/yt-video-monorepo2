@@ -20,7 +20,9 @@ async function updateScene(req, res) {
       videoUrl,
       audioUrl,
       mergedVideoUrl,
+      dubbedVideoUrl,
       audioDuration,
+      isDialog,
       status,
     } = req.body;
 
@@ -38,7 +40,10 @@ async function updateScene(req, res) {
     if (audioUrl !== undefined) updateData.audioUrl = audioUrl;
     if (mergedVideoUrl !== undefined)
       updateData.mergedVideoUrl = mergedVideoUrl;
+    if (dubbedVideoUrl !== undefined)
+      updateData.dubbedVideoUrl = dubbedVideoUrl;
     if (audioDuration !== undefined) updateData.audioDuration = audioDuration;
+    if (isDialog !== undefined) updateData.isDialog = isDialog;
     if (status !== undefined) updateData.status = status;
 
     // Otomatik status belirleme
